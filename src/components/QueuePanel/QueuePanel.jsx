@@ -50,8 +50,12 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
 
   function handlePlay(e) {
     e.stopPropagation();
-    setCurrentIndex(index);
-    setIsPlaying(true);
+    if (isCurrent) {
+      setIsPlaying(!isPlaying);
+    } else {
+      setCurrentIndex(index);
+      setIsPlaying(true);
+    }
   }
 
   function handleRemove(e) {
@@ -89,7 +93,7 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
         )}
       </div>
 
-      <div className="queue-item-info" onDoubleClick={handlePlay}>
+      <div className="queue-item-info" onClick={handlePlay} style={{ cursor: 'pointer' }}>
         <span className="queue-item-title text-truncate">{song.title}</span>
         <span className="queue-item-artist text-truncate">{song.artist || 'Unknown'}</span>
       </div>
@@ -101,9 +105,9 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
           id={`queue-play-${song.id}`}
           className="btn btn-icon btn-sm queue-play-btn"
           onClick={handlePlay}
-          aria-label="Play"
-          title="Play"
-        >▶</button>
+          aria-label={isCurrent && isPlaying ? "Pause" : "Play"}
+          title={isCurrent && isPlaying ? "Pause" : "Play"}
+        >{isCurrent && isPlaying ? '❚❚' : '▶'}</button>
         <button
           id={`queue-remove-${song.id}`}
           className="btn btn-icon btn-sm queue-remove-btn"

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import usePlayerStore from '../../store/usePlayerStore';
-import { formatDuration, convertFileSrc, readAudioFile } from '../../lib/api';
+import { formatDuration, readAudioFile } from '../../lib/api';
 import './AudioPlayer.css';
 
 // ── SVG Icons ────────────────────────────────────────────────
@@ -97,44 +97,32 @@ export default function AudioPlayer() {
     }
 
     const loadAndPlay = async () => {
-      // 1. Try asset protocol first (streaming support)
       try {
-        const assetSrc = convertFileSrc(currentSong.path);
-        console.log('[AudioPlayer] Loading via asset protocol:', currentSong.title, assetSrc);
-        audio.src = assetSrc;
-
-        if (isPlaying) {
-          try {
-            await audio.play();
-            return;
-          } catch (playErr) {
-            if (isCancelled) return;
-            console.warn('[AudioPlayer] Asset protocol play rejected, switching to native Blob:', playErr);
-          }
-        } else {
-          return;
-        }
-      } catch (err) {
-        console.warn('[AudioPlayer] convertFileSrc error:', err);
-      }
-
-      // 2. Fallback: Read raw audio bytes via Tauri IPC & create Blob URL
-      try {
-        console.log('[AudioPlayer] Loading via Blob URL fallback for:', currentSong.path);
+        console.log('[AudioPlayer] Loading via Blob URL for:', currentSong.title, currentSong.path);
         const blobUrl = await readAudioFile(currentSong.path);
         if (isCancelled) {
           URL.revokeObjectURL(blobUrl);
           return;
         }
+
         blobUrlRef.current = blobUrl;
         audio.src = blobUrl;
+        audio.load();
+
         if (isPlaying) {
-          await audio.play();
+          try {
+            await audio.play();
+          } catch (playErr) {
+            if (isCancelled) return;
+            if (playErr.name !== 'AbortError') {
+              console.warn('[AudioPlayer] audio.play() rejected:', playErr);
+            }
+          }
         }
-      } catch (fallbackErr) {
+      } catch (err) {
         if (isCancelled) return;
-        console.error('[AudioPlayer] All playback methods failed:', fallbackErr);
-        showToast('Playback error: ' + (fallbackErr.message || fallbackErr), 'error');
+        console.error('[AudioPlayer] Failed to load audio file:', err);
+        showToast('Playback error: ' + (err.message || err), 'error');
         setIsPlaying(false);
       }
     };
@@ -189,26 +177,9 @@ export default function AudioPlayer() {
     handleNext();
   }
 
-  async function handleAudioError() {
+  function handleAudioError() {
     const audio = audioRef.current;
     if (!audio || !currentSong) return;
-
-    // If asset protocol failed, immediately try Blob URL fallback
-    if (audio.src && !audio.src.startsWith('blob:')) {
-      console.log('[AudioPlayer] Audio element error on asset URL, falling back to Blob for:', currentSong.path);
-      try {
-        const blobUrl = await readAudioFile(currentSong.path);
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = blobUrl;
-        audio.src = blobUrl;
-        if (isPlaying) {
-          await audio.play();
-        }
-        return;
-      } catch (err) {
-        console.error('[AudioPlayer] Blob fallback failed after audio error:', err);
-      }
-    }
 
     const error = audio.error;
     console.error('[AudioPlayer] HTML5 Audio error:', error, audio.src);

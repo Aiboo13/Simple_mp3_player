@@ -86,8 +86,12 @@ export default function MainPanel() {
   }
 
   function handlePlaySong(song, index) {
-    replaceQueue(displaySongs, index);
-    setIsPlaying(true);
+    if (isCurrentSong(song)) {
+      setIsPlaying(!isPlaying);
+    } else {
+      replaceQueue(displaySongs, index);
+      setIsPlaying(true);
+    }
   }
 
   function handlePlayAll() {
@@ -253,14 +257,18 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay }) {
     showToast(`Added to queue: ${song.title}`);
   }
 
+  function handleRowClick() {
+    onPlay();
+  }
+
   return (
     <div
       id={`song-row-${song.id}`}
       className={`song-row ${isCurrent ? 'current' : ''}`}
       role="listitem"
-      onDoubleClick={onPlay}
+      onClick={handleRowClick}
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onPlay()}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPlay()}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
     >
       <div className="song-row-num mono">
@@ -294,11 +302,14 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay }) {
         <button
           id={`play-btn-${song.id}`}
           className="btn btn-icon btn-sm song-play-btn btn-primary"
-          onClick={onPlay}
-          aria-label={`Play ${song.title}`}
-          title="Play"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlay();
+          }}
+          aria-label={isCurrent && isPlaying ? `Pause ${song.title}` : `Play ${song.title}`}
+          title={isCurrent && isPlaying ? "Pause" : "Play"}
         >
-          ▶
+          {isCurrent && isPlaying ? '❚❚' : '▶'}
         </button>
       </div>
     </div>

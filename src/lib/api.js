@@ -98,7 +98,17 @@ export async function removeMusicDir(id) {
  */
 export async function readAudioFile(path) {
   const bytes = await invoke('read_audio_file', { path });
-  const blob = new Blob([new Uint8Array(bytes)], { type: 'audio/mpeg' });
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const mimeMap = {
+    mp3: 'audio/mpeg',
+    flac: 'audio/flac',
+    ogg: 'audio/ogg',
+    m4a: 'audio/mp4',
+    wav: 'audio/wav',
+    aac: 'audio/aac',
+  };
+  const type = mimeMap[ext] || 'audio/mpeg';
+  const blob = new Blob([new Uint8Array(bytes)], { type });
   return URL.createObjectURL(blob);
 }
 
