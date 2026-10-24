@@ -218,6 +218,21 @@ pub fn check_has_id3_header(path: &Path) -> bool {
     }
 }
 
+/// Check if a file starts with an ID3v2 header or MP4 container header
+pub fn check_has_id3_or_mp4_header(path: &Path) -> bool {
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let mut magic = [0u8; 8];
+    if file.read_exact(&mut magic).is_ok() {
+        &magic[..3] == b"ID3" || &magic[4..8] == b"ftyp"
+    } else {
+        false
+    }
+}
+
+
 /// Fast duration estimation for pure MP3 without scanning the full file.
 /// Parses the first valid MPEG frame header within the first 4KB to read bitrate.
 pub fn quick_estimate_mp3_duration(path: &Path, file_size: i64) -> Option<f64> {
@@ -291,56 +306,18 @@ fn extract_metadata(path: &Path) -> ExtractedSong {
         .unwrap_or("")
         .to_lowercase();
 
-    // ── PRD v1.5 Requirement 4.B: Fast-Fail Metadata Scanning ──
-    // If an MP3 does not have an ID3 header at the beginning, immediately classify
-    // as Pure Audio (< 1ms). Skip searching metadata and full file parsing to prevent 1s skip.
-    if ext == "mp3" && !check_has_id3_header(path) {
-        let duration_secs = quick_estimate_mp3_duration(path, file_size);
-        return ExtractedSong {
-            path: path_str,
-            title: fallback_title,
-            artist: None,
-            album: None,
-            album_artist: None,
-            track_number: None,
-            duration_secs,
-            year: None,
-            genre: None,
-            has_cover: false,
-            has_lyrics: has_lrc,
-            has_metadata: false,
-            file_size,
-        };
-    }
-
-    let scan_start = std::time::Instant::now();
     let tagged_file = match Probe::open(path)
         .ok()
         .and_then(|p| p.guess_file_type().ok())
         .and_then(|p| p.read().ok())
     {
-        Some(f) => {
-            // PRD v1.5: If reading took > 50ms without tags, fast-fail to pure audio
-            if scan_start.elapsed() > Duration::from_millis(50) && f.primary_tag().is_none() && f.first_tag().is_none() {
-                return ExtractedSong {
-                    path: path_str,
-                    title: fallback_title,
-                    artist: None,
-                    album: None,
-                    album_artist: None,
-                    track_number: None,
-                    duration_secs: None,
-                    year: None,
-                    genre: None,
-                    has_cover: false,
-                    has_lyrics: has_lrc,
-                    has_metadata: false,
-                    file_size,
-                };
-            }
-            f
-        }
+        Some(f) => f,
         None => {
+            let duration_secs = if ext == "mp3" {
+                quick_estimate_mp3_duration(path, file_size)
+            } else {
+                None
+            };
             return ExtractedSong {
                 path: path_str,
                 title: fallback_title,
@@ -348,12 +325,12 @@ fn extract_metadata(path: &Path) -> ExtractedSong {
                 album: None,
                 album_artist: None,
                 track_number: None,
-                duration_secs: None,
+                duration_secs,
                 year: None,
                 genre: None,
                 has_cover: false,
                 has_lyrics: has_lrc,
-                has_metadata: has_lrc,
+                has_metadata: false,
                 file_size,
             };
         }
@@ -419,9 +396,9 @@ pub fn get_album_art_data(path: &str) -> Option<String> {
         return None;
     }
 
-    // PRD v1.5 Fast-fail: MP3 without ID3 header cannot have album art
+    // Fast-fail: MP3 without ID3 header or MP4 container cannot have album art
     let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
-    if ext == "mp3" && !check_has_id3_header(p) {
+    if ext == "mp3" && !check_has_id3_or_mp4_header(p) {
         return None;
     }
 
@@ -479,9 +456,9 @@ pub fn get_lyrics_data(path: &str) -> Option<String> {
         }
     }
 
-    // PRD v1.5 Fast-fail: MP3 without ID3 header cannot have embedded lyrics
+    // Fast-fail: MP3 without ID3 header or MP4 container cannot have embedded lyrics
     let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
-    if ext == "mp3" && !check_has_id3_header(p) {
+    if ext == "mp3" && !check_has_id3_or_mp4_header(p) {
         return None;
     }
 
@@ -609,4 +586,47 @@ mod tests {
         let _ = std::fs::remove_file(pure_path);
         let _ = std::fs::remove_file(tagged_path);
     }
+
+    #[test]
+    fn test_pure_audio_and_mp4_lofty_detection() {
+        use std::io::Write;
+        let temp_dir = std::env::temp_dir();
+
+        // 1. Mock pure MP3 (no ID3 tag, just MPEG frame)
+        let pure_path = temp_dir.join(format!("test_pure_{}.mp3", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        {
+            let mut f = File::create(&pure_path).unwrap();
+            let frame = [0xFF, 0xFB, 0x90, 0x64];
+            f.write_all(&frame).unwrap();
+            f.write_all(&vec![0u8; 1000]).unwrap();
+        }
+
+        let extracted_pure = extract_metadata(&pure_path);
+        assert!(!extracted_pure.has_metadata);
+        assert!(!extracted_pure.has_cover);
+        assert!(extracted_pure.duration_secs.is_some());
+
+        // 2. Mock MP4/M4A file named .mp3
+        let mp4_path = temp_dir.join(format!("test_aac_{}.mp3", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        {
+            let mut f = File::create(&mp4_path).unwrap();
+            // MP4 box header: size (32 bytes), type 'ftyp', major brand 'M4A '
+            let header = [
+                0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70,
+                0x4D, 0x34, 0x41, 0x20, 0x00, 0x00, 0x02, 0x00,
+                0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32,
+            ];
+            f.write_all(&header).unwrap();
+            f.write_all(&vec![0u8; 500]).unwrap();
+        }
+
+        assert!(check_has_id3_or_mp4_header(&mp4_path));
+        let extracted_mp4 = extract_metadata(&mp4_path);
+        assert!(!extracted_mp4.has_metadata); // no metadata tags inside mock
+
+        let _ = std::fs::remove_file(pure_path);
+        let _ = std::fs::remove_file(mp4_path);
+    }
 }
+
+

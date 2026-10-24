@@ -94,21 +94,108 @@ export async function removeMusicDir(id) {
 }
 
 /**
- * Read raw audio file bytes and return a native browser Blob URL
+ * Detect actual audio MIME type from binary magic bytes to support files with mismatched extensions
+ * (e.g., MP4/AAC/DASH files disguised with .mp3 extension).
  */
-export async function readAudioFile(path) {
-  const bytes = await invoke('read_audio_file', { path });
-  const ext = (path.split('.').pop() || '').toLowerCase();
+export function detectAudioMimeType(uint8Array, fallbackExt = '') {
+  if (!uint8Array || uint8Array.length < 4) {
+    const ext = (fallbackExt || '').toLowerCase();
+    const mimeMap = {
+      mp3: 'audio/mpeg',
+      flac: 'audio/flac',
+      ogg: 'audio/ogg',
+      m4a: 'audio/mp4',
+      mp4: 'audio/mp4',
+      wav: 'audio/wav',
+      aac: 'audio/aac',
+    };
+    return mimeMap[ext] || 'audio/mpeg';
+  }
+
+  // 1. ISO Base Media File Format (MP4 / M4A / DASH / QuickTime container)
+  // Bytes 4..8 == 'ftyp'
+  if (
+    uint8Array.length >= 8 &&
+    uint8Array[4] === 0x66 && // 'f'
+    uint8Array[5] === 0x74 && // 't'
+    uint8Array[6] === 0x79 && // 'y'
+    uint8Array[7] === 0x70    // 'p'
+  ) {
+    return 'audio/mp4';
+  }
+
+  // 2. FLAC ('fLaC')
+  if (
+    uint8Array[0] === 0x66 &&
+    uint8Array[1] === 0x4c &&
+    uint8Array[2] === 0x61 &&
+    uint8Array[3] === 0x43
+  ) {
+    return 'audio/flac';
+  }
+
+  // 3. Ogg container ('OggS')
+  if (
+    uint8Array[0] === 0x4f &&
+    uint8Array[1] === 0x67 &&
+    uint8Array[2] === 0x67 &&
+    uint8Array[3] === 0x73
+  ) {
+    return 'audio/ogg';
+  }
+
+  // 4. WAV ('RIFF' ... 'WAVE')
+  if (
+    uint8Array.length >= 12 &&
+    uint8Array[0] === 0x52 && uint8Array[1] === 0x49 && uint8Array[2] === 0x46 && uint8Array[3] === 0x46 &&
+    uint8Array[8] === 0x57 && uint8Array[9] === 0x41 && uint8Array[10] === 0x56 && uint8Array[11] === 0x45
+  ) {
+    return 'audio/wav';
+  }
+
+  // 5. MP3 with ID3v2 header ('ID3')
+  if (
+    uint8Array[0] === 0x49 &&
+    uint8Array[1] === 0x44 &&
+    uint8Array[2] === 0x33
+  ) {
+    return 'audio/mpeg';
+  }
+
+  // 6. Raw MPEG Frame Sync (11 consecutive 1s: 0xFF followed by high 3 bits 111)
+  if (uint8Array[0] === 0xff && (uint8Array[1] & 0xe0) === 0xe0) {
+    const layerBits = (uint8Array[1] >> 1) & 0x03;
+    if (layerBits === 0) {
+      // ADTS AAC
+      return 'audio/aac';
+    }
+    // MPEG Layer I, II, or III (MP3)
+    return 'audio/mpeg';
+  }
+
+  // Fallback by extension
+  const ext = (fallbackExt || '').toLowerCase();
   const mimeMap = {
     mp3: 'audio/mpeg',
     flac: 'audio/flac',
     ogg: 'audio/ogg',
     m4a: 'audio/mp4',
+    mp4: 'audio/mp4',
     wav: 'audio/wav',
     aac: 'audio/aac',
   };
-  const type = mimeMap[ext] || 'audio/mpeg';
-  const blob = new Blob([new Uint8Array(bytes)], { type });
+  return mimeMap[ext] || 'audio/mpeg';
+}
+
+/**
+ * Read raw audio file bytes and return a native browser Blob URL
+ */
+export async function readAudioFile(path) {
+  const bytes = await invoke('read_audio_file', { path });
+  const u8 = new Uint8Array(bytes);
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const type = detectAudioMimeType(u8, ext);
+  const blob = new Blob([u8], { type });
   return URL.createObjectURL(blob);
 }
 

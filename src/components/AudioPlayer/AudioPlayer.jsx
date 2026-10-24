@@ -66,16 +66,16 @@ function waitForDecoderStabilization(audio, targetSeq, isPure, transitionSeqRef)
       return;
     }
 
-    let resolved = false;
-    let initialTime = audio.currentTime;
-    let progressCount = 0;
-    const requiredChecks = isPure ? 3 : 2;
-    let isStalled = false;
+    // If audio has already started advancing frames, unmute immediately
+    if (audio.currentTime > 0 && !audio.paused && !audio.seeking) {
+      resolve(true);
+      return;
+    }
 
+    let resolved = false;
     const cleanup = () => {
-      audio.removeEventListener('waiting', onWaiting);
-      audio.removeEventListener('stalled', onStalled);
-      clearInterval(interval);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
       clearTimeout(failsafeTimer);
     };
 
@@ -87,49 +87,22 @@ function waitForDecoderStabilization(audio, targetSeq, isPure, transitionSeqRef)
       }
     };
 
-    const onWaiting = () => {
-      isStalled = true;
-      progressCount = 0;
+    const onPlaying = () => done(true);
+    const onTimeUpdate = () => {
+      if (audio.currentTime > 0) done(true);
     };
 
-    const onStalled = () => {
-      isStalled = true;
-      progressCount = 0;
-    };
+    audio.addEventListener('playing', onPlaying, { once: true });
+    audio.addEventListener('timeupdate', onTimeUpdate, { once: true });
 
-    audio.addEventListener('waiting', onWaiting);
-    audio.addEventListener('stalled', onStalled);
-
-    const interval = setInterval(() => {
-      if (targetSeq !== transitionSeqRef.current) {
-        done(false);
-        return;
-      }
-      if (audio.paused) {
-        done(true);
-        return;
-      }
-
-      const cur = audio.currentTime;
-      if (cur > initialTime && !isStalled) {
-        progressCount++;
-        initialTime = cur;
-        if (progressCount >= requiredChecks) {
-          done(true);
-        }
-      } else if (cur > initialTime && isStalled) {
-        isStalled = false;
-        progressCount = 1;
-        initialTime = cur;
-      }
-    }, 25);
-
-    // Failsafe safety timeout (1200ms) to ensure playback never indefinitely stays muted
+    // Failsafe safety timeout (150ms) to ensure transition never indefinitely stays muted
+    // and eliminates the unnatural 1s skip / stutter
     const failsafeTimer = setTimeout(() => {
       done(true);
-    }, 1200);
+    }, 150);
   });
 }
+
 
 export default function AudioPlayer() {
   const audioRef = useRef(null);
@@ -406,8 +379,10 @@ export default function AudioPlayer() {
 
         if (seq !== transitionSeqRef.current) return;
 
-        if (!isNaN(audio.duration) && audio.duration > 0) {
+        if (!isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
           setDuration(audio.duration);
+        } else if (currentSong?.duration_secs && currentSong.duration_secs > 0) {
+          setDuration(currentSong.duration_secs);
         }
 
         // ── Phase 5: Play (Lagu B) & Decoder Stabilization (PRD v1.5 Req 4.A) ──
@@ -511,7 +486,9 @@ export default function AudioPlayer() {
   }
 
   function handlePause() {
-    setIsPlaying(false);
+    if (!isTransitioningRef.current) {
+      setIsPlaying(false);
+    }
   }
 
   function handleTimeUpdate() {
@@ -523,8 +500,10 @@ export default function AudioPlayer() {
   function handleLoadedMetadata() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (!isNaN(audio.duration) && audio.duration > 0) {
+    if (!isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
       setDuration(audio.duration);
+    } else if (currentSong?.duration_secs && currentSong.duration_secs > 0) {
+      setDuration(currentSong.duration_secs);
     }
   }
 
@@ -566,8 +545,10 @@ export default function AudioPlayer() {
     const x = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
     const newTime = pct * duration;
-    audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    if (isFinite(newTime) && newTime >= 0) {
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
   }
 
   // ── Volume control ────────────────────────────────────────────
