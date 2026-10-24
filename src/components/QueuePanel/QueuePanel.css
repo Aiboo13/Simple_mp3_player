@@ -1,0 +1,189 @@
+.queue-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-left: var(--border-thick);
+  background: var(--surface-bg);
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.queue-header {
+  justify-content: space-between;
+  background: var(--clr-blue);
+  flex-shrink: 0;
+}
+.queue-meta {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.7);
+  margin-top: 2px;
+}
+.queue-clear-btn {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.3);
+  color: white;
+  font-size: 11px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+}
+.queue-clear-btn:hover {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+  transform: translate(-1px, -1px);
+}
+
+/* ── Empty State ── */
+.queue-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  color: #aaa;
+  font-size: 13px;
+  padding: var(--sp-6);
+  text-align: center;
+}
+.queue-empty-icon {
+  font-size: 36px;
+  color: #ddd;
+  margin-bottom: var(--sp-2);
+}
+.queue-empty .mono {
+  font-size: 11px;
+  color: #bbb;
+}
+
+/* ── Queue List ── */
+.queue-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-1) 0;
+}
+
+/* ── Queue Item ── */
+.queue-item {
+  display: grid;
+  grid-template-columns: 24px 28px 1fr 48px 56px;
+  align-items: center;
+  padding: 6px var(--sp-3) 6px var(--sp-2);
+  border-bottom: 1px solid #e0ddd8;
+  transition: background var(--transition-fast);
+  position: relative;
+  min-height: 50px;
+}
+.queue-item:hover { background: var(--surface-panel); }
+.queue-item.current {
+  background: rgba(232, 41, 26, 0.08);
+  border-left: 3px solid var(--clr-red);
+}
+.queue-item.current:hover { background: rgba(232, 41, 26, 0.12); }
+.queue-item.dragging { background: var(--clr-yellow) !important; border: 2px dashed var(--clr-black); }
+
+/* Drag Overlay */
+.drag-overlay {
+  background: var(--clr-yellow);
+  border: var(--border-thick);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.95;
+  rotate: 1deg;
+  z-index: 9999;
+}
+
+/* Drag Handle */
+.queue-drag-handle {
+  color: #ccc;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 2px;
+  touch-action: none;
+}
+.queue-drag-handle:hover { color: var(--clr-black); }
+.queue-drag-handle:active { cursor: grabbing; }
+
+/* Item Number */
+.queue-item-num {
+  font-size: 11px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.queue-item.current .queue-item-num { color: var(--clr-red); }
+
+/* Item Info */
+.queue-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 var(--sp-2);
+  cursor: pointer;
+}
+.queue-item-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.queue-item.current .queue-item-title { color: var(--clr-red); }
+.queue-item-artist {
+  font-size: 11px;
+  color: #888;
+}
+
+/* Duration */
+.queue-item-dur {
+  font-size: 11px;
+  color: #aaa;
+  text-align: right;
+}
+
+/* Actions */
+.queue-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.queue-item:hover .queue-item-actions { opacity: 1; }
+
+.queue-play-btn, .queue-remove-btn {
+  min-width: 24px;
+  height: 24px;
+  font-size: 11px;
+  box-shadow: 2px 2px 0 var(--clr-black);
+  padding: 0;
+}
+.queue-play-btn {
+  background: var(--clr-red);
+  color: white;
+  border-color: var(--clr-black);
+}
+.queue-remove-btn {
+  background: white;
+  color: #666;
+}
+.queue-remove-btn:hover { color: var(--clr-red); }
+.queue-play-btn:hover, .queue-remove-btn:hover {
+  box-shadow: 3px 3px 0 var(--clr-black);
+  transform: translate(-1px, -1px);
+}
+
+/* Playing bars (smaller) */
+.q-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 12px;
+}
+.q-bars span {
+  width: 2px;
+  background: var(--clr-red);
+  animation: bar-bounce 0.8s ease-in-out infinite alternate;
+}
+.q-bars span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.q-bars span:nth-child(2) { height: 12px; animation-delay: 0.2s; }
+.q-bars span:nth-child(3) { height: 5px; animation-delay: 0.4s; }

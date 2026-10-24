@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="MP3 Player Lokal - Desktop music player untuk Ubuntu dengan Brutalism design" />
+    <title>MP3 Player Lokal</title>
+    <script>
+      window.addEventListener('error', function(e) {
+        var box = document.getElementById('debug-err-box') || document.createElement('div');
+        box.id = 'debug-err-box';
+        box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e8291a;color:#fff;padding:16px;font-family:monospace;font-size:14px;z-index:999999;border-bottom:4px solid black;white-space:pre-wrap;';
+        box.textContent = '❌ JS Error: ' + e.message + '\nFile: ' + e.filename + ':' + e.lineno;
+        document.body.appendChild(box);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var box = document.getElementById('debug-err-box') || document.createElement('div');
+        box.id = 'debug-err-box';
+        box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e8291a;color:#fff;padding:16px;font-family:monospace;font-size:14px;z-index:999999;border-bottom:4px solid black;white-space:pre-wrap;';
+        box.textContent = '❌ Unhandled Promise: ' + (e.reason ? (e.reason.stack || e.reason.message || e.reason) : e);
+        document.body.appendChild(box);
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="root">
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#f0ede8;font-family:sans-serif;font-weight:bold;font-size:24px;">
+        Memuat MP3 Player...
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

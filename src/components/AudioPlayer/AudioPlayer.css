@@ -1,0 +1,209 @@
+.audio-player {
+  display: grid;
+  grid-template-columns: 280px 1fr 200px;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-5);
+  height: 100%;
+  border-top: var(--border-thick);
+  background: var(--surface-dark);
+  color: var(--clr-white);
+}
+
+/* ── Song Info ── */
+.player-song-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.player-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--clr-white);
+  letter-spacing: -0.01em;
+}
+.player-artist {
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* ── Center Controls ── */
+.player-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.player-ctrl-btn {
+  background: transparent;
+  border-color: #444;
+  color: #aaa;
+  box-shadow: 2px 2px 0 #000;
+  width: 36px;
+  height: 36px;
+}
+.player-ctrl-btn:hover {
+  background: var(--surface-dark-2);
+  color: var(--clr-white);
+  border-color: #666;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #000;
+}
+.player-ctrl-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #000;
+}
+.player-ctrl-btn.active {
+  background: var(--clr-red);
+  border-color: var(--clr-red);
+  color: white;
+  box-shadow: 3px 3px 0 #000;
+}
+.player-ctrl-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 2px 2px 0 #000;
+}
+
+.player-play-btn {
+  background: var(--clr-red);
+  border-color: var(--clr-red);
+  color: white;
+  width: 48px;
+  height: 48px;
+  box-shadow: 4px 4px 0 #000;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.player-play-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #000;
+}
+.player-play-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000;
+}
+.player-play-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 4px 4px 0 #000;
+}
+
+/* Repeat badge */
+.repeat-one-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 8px;
+  background: var(--clr-yellow);
+  color: black;
+  padding: 0 3px;
+  border: 1px solid black;
+  pointer-events: none;
+}
+.player-ctrl-btn { position: relative; }
+
+/* ── Seek Bar ── */
+.player-seek-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+}
+.player-time {
+  font-size: 11px;
+  color: #888;
+  letter-spacing: 0.04em;
+  min-width: 36px;
+  text-align: center;
+}
+
+.seek-bar {
+  flex: 1;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+.seek-track {
+  width: 100%;
+  height: 6px;
+  background: #333;
+  border: 2px solid #444;
+  position: relative;
+  overflow: visible;
+}
+.seek-fill {
+  height: 100%;
+  background: var(--clr-red);
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: width 0.1s linear;
+}
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: var(--clr-white);
+  border: 2px solid var(--clr-black);
+  box-shadow: 2px 2px 0 var(--clr-black);
+  transition: left 0.1s linear;
+}
+.seek-bar:hover .seek-thumb {
+  background: var(--clr-yellow);
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Volume ── */
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.volume-slider {
+  width: 90px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #333;
+  border: 2px solid #444;
+  outline: none;
+  cursor: pointer;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--clr-white);
+  border: 2px solid var(--clr-black);
+  box-shadow: 2px 2px 0 var(--clr-black);
+  cursor: pointer;
+}
+.volume-slider::-webkit-slider-thumb:hover {
+  background: var(--clr-yellow);
+}
+
+.volume-pct {
+  font-size: 10px;
+  color: #666;
+  min-width: 28px;
+  text-align: right;
+  letter-spacing: 0.04em;
+}
