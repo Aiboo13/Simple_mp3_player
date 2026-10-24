@@ -311,30 +311,85 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   --shadow-xl: 12px 12px 0 #000000;
 }
 
+/* ── Shell & Body ── */
 [data-theme="bw"] body,
 [data-theme="bw"].app-shell {
   background: #b0b0b0 !important;
   color: #000000 !important;
 }
 
+/* ── Navigasi: Brand & Logo ── */
 [data-theme="bw"] .nav-brand {
   background: #111111 !important;
   color: #c8c8c8 !important;
   border-bottom: 3px solid #666666 !important;
 }
 
-[data-theme="bw"] .btn-primary {
-  background: #000000 !important;
-  color: #c8c8c8 !important;
+/* ── Navigasi: Tombol Pemilih Tema (Theme Pill Aktif) ── */
+[data-theme="bw"] .nav-theme-pill.active {
+  background: #333333 !important;
+  border-color: #777777 !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+/* ── Area Pemutar Atas: Now Playing & Split Berdampingan ── */
+[data-theme="bw"] .now-playing-area {
+  background: #b0b0b0 !important;
+  border-bottom: 3px solid #000000 !important;
+}
+
+[data-theme="bw"] .now-playing-media {
+  background: #b0b0b0 !important;
+}
+
+/* Garis pembatas vertikal antara album cover dan area lirik */
+[data-theme="bw"] .now-playing-divider {
+  border-right: 3px solid #000000 !important;
+}
+
+/* ── Area Lirik: Kontainer & Toolbar Fullscreen ── */
+[data-theme="bw"] .now-playing-lyrics {
+  background: #141414 !important;
+  color: #dcdcdc !important;
+}
+
+[data-theme="bw"] .lyrics-toolbar {
+  background: #1b1b1b !important;
+  border-bottom: 2px solid #333333 !important;
+}
+
+[data-theme="bw"] .lyrics-fs-btn {
+  background: #252525 !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+[data-theme="bw"] .lyrics-fs-btn:hover {
+  background: #ffffff !important;
+  color: #000000 !important;
   border-color: #000000 !important;
 }
 
-[data-theme="bw"] .btn-primary:hover {
-  background: #252525 !important;
-  color: #e0e0e0 !important;
-  box-shadow: 6px 6px 0 #000000 !important;
+/* ── Area Lirik: Baris Teks Lirik & Efek Aktif ── */
+[data-theme="bw"] .lyrics-line {
+  color: #777777 !important;
 }
 
+[data-theme="bw"] .lyrics-line.past {
+  color: #444444 !important;
+}
+
+/* Baris lirik yang sedang bernyanyi (highlight putih terang dengan glow lembut) */
+[data-theme="bw"] .lyrics-line.active {
+  color: #ffffff !important;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: #ffffff !important;
+}
+
+/* ── Daftar Lagu: Baris Lagu yang Sedang Diputar (Current Track) ── */
 [data-theme="bw"] .song-row.current {
   background: #000000 !important;
   color: #c8c8c8 !important;
@@ -357,6 +412,13 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   background: #1c1c1c !important;
 }
 
+/* ── Panel Antrian: Item Antrian Aktif ── */
+[data-theme="bw"] .queue-item.current {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-left: 4px solid #000000 !important;
+}
+
+/* ── Kontrol Pemutar Audio Bawah: Tombol Play, Seekbar, & Kontrol ── */
 [data-theme="bw"] .player-play-btn {
   background: #9e9e9e !important;
   color: #000000 !important;
@@ -384,6 +446,19 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-color: #000000 !important;
 }
 
+/* ── Komponen UI: Tombol Primer & Lencana (Badges) ── */
+[data-theme="bw"] .btn-primary {
+  background: #000000 !important;
+  color: #c8c8c8 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .btn-primary:hover {
+  background: #252525 !important;
+  color: #e0e0e0 !important;
+  box-shadow: 6px 6px 0 #000000 !important;
+}
+
 [data-theme="bw"] .badge {
   background: #222222 !important;
   color: #c8c8c8 !important;
@@ -395,69 +470,6 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   background: #333333 !important;
   color: #c8c8c8 !important;
   border-color: #555555 !important;
-}
-
-[data-theme="bw"] .queue-item.current {
-  background: rgba(0, 0, 0, 0.15) !important;
-  border-left: 4px solid #000000 !important;
-}
-
-[data-theme="bw"] .nav-theme-pill.active {
-  background: #333333 !important;
-  border-color: #777777 !important;
-  color: #ffffff !important;
-  box-shadow: 2px 2px 0 #000000 !important;
-}
-
-[data-theme="bw"] .now-playing-area {
-  background: #b0b0b0 !important;
-  border-bottom: 3px solid #000000 !important;
-}
-
-[data-theme="bw"] .now-playing-media {
-  background: #b0b0b0 !important;
-}
-
-[data-theme="bw"] .now-playing-divider {
-  border-right: 3px solid #000000 !important;
-}
-
-[data-theme="bw"] .now-playing-lyrics {
-  background: #141414 !important;
-  color: #dcdcdc !important;
-}
-
-[data-theme="bw"] .lyrics-toolbar {
-  background: #1b1b1b !important;
-  border-bottom: 2px solid #333333 !important;
-}
-
-[data-theme="bw"] .lyrics-fs-btn {
-  background: #252525 !important;
-  border-color: #555555 !important;
-  color: #ffffff !important;
-  box-shadow: 2px 2px 0 #000000 !important;
-}
-
-[data-theme="bw"] .lyrics-fs-btn:hover {
-  background: #ffffff !important;
-  color: #000000 !important;
-  border-color: #000000 !important;
-}
-
-[data-theme="bw"] .lyrics-line {
-  color: #777777 !important;
-}
-
-[data-theme="bw"] .lyrics-line.past {
-  color: #444444 !important;
-}
-
-[data-theme="bw"] .lyrics-line.active {
-  color: #ffffff !important;
-  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7) !important;
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-color: #ffffff !important;
 }
 
 
@@ -491,6 +503,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   --shadow-xl: 10px 10px 0 #00ff66;
 }
 
+/* ── Shell, Body, & Tata Letak Panel ── */
 [data-theme="darkweb"] body,
 [data-theme="darkweb"].app-shell {
   background: #030605 !important;
@@ -501,6 +514,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-bottom: 3px solid #00ff66 !important;
 }
 
+/* ── Panel Navigasi Kiri (Brand, Icon Glow, & Nav Items) ── */
 [data-theme="darkweb"] .nav-panel {
   background: #020403 !important;
   border-right: 3px solid #00ff66 !important;
@@ -536,6 +550,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 0 0 10px rgba(0, 255, 102, 0.4) !important;
 }
 
+/* ── Area Pemutar Utama (Main Panel & Now Playing) ── */
 [data-theme="darkweb"] .main-panel {
   background: #030605 !important;
   color: #33ff77 !important;
@@ -546,11 +561,13 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-bottom: 2px solid #00ff66 !important;
 }
 
+/* ── Cover Album / Album Art Glow ── */
 [data-theme="darkweb"] .album-art-wrapper {
   border: 2px solid #00ff66 !important;
   box-shadow: 0 0 15px rgba(0, 255, 102, 0.3) !important;
 }
 
+/* ── Status Kosong (Empty Player Saat Tidak Ada Lagu Diputar) ── */
 [data-theme="darkweb"] .empty-player-icon {
   background: #070e0a !important;
   border: 2px solid #00ff66 !important;
@@ -566,6 +583,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #559972 !important;
 }
 
+/* ── Info Judul & Artis Now Playing ── */
 [data-theme="darkweb"] .now-playing-title {
   color: #00ff66 !important;
   text-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
@@ -575,10 +593,12 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #79c79b !important;
 }
 
+/* ── Area Lirik Berdampingan (Side-by-Side Split, Divider, & Toolbar) ── */
 [data-theme="darkweb"] .now-playing-media {
   background: #050b07 !important;
 }
 
+/* Garis pembatas vertikal antara cover album dan panel lirik */
 [data-theme="darkweb"] .now-playing-divider {
   border-right: 2px solid #00ff66 !important;
 }
@@ -593,6 +613,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-bottom: 2px solid #00ff66 !important;
 }
 
+/* Tombol Mode Layar Penuh (Fullscreen) Lirik */
 [data-theme="darkweb"] .lyrics-fs-btn {
   background: #070e0a !important;
   border-color: #00ff66 !important;
@@ -606,6 +627,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 0 0 12px #00ff66 !important;
 }
 
+/* ── Baris Lirik Bergulir & Highlight Aktif (Matrix Neon Glow) ── */
 [data-theme="darkweb"] .lyrics-line {
   color: #27623e !important;
 }
@@ -619,6 +641,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #163e26 !important;
 }
 
+/* Baris lirik yang sedang dinyanyikan (highlight hijau neon dengan efek teks menyala) */
 [data-theme="darkweb"] .lyrics-line.active {
   color: #00ff66 !important;
   text-shadow: 0 0 16px rgba(0, 255, 102, 0.8) !important;
@@ -626,6 +649,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-color: #00ff66 !important;
 }
 
+/* ── Daftar Musik: Header Kolom & Baris Lagu ── */
 [data-theme="darkweb"] .song-list-cols {
   background: #070e0a !important;
   border-bottom: 2px solid #00ff66 !important;
@@ -641,6 +665,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   background: #0a140f !important;
 }
 
+/* Baris lagu yang sedang diputar (highlight latar hijau neon pekat) */
 [data-theme="darkweb"] .song-row.current {
   background: #00ff66 !important;
   color: #030605 !important;
@@ -663,6 +688,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #63a880 !important;
 }
 
+/* ── Panel Antrian Kanan (Queue Header & Queue Items) ── */
 [data-theme="darkweb"] .queue-panel {
   background: #040806 !important;
   border-left: 2px solid #00ff66 !important;
@@ -688,6 +714,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   border-left: 3px solid #00ff66 !important;
 }
 
+/* ── Bilah Pemutar Audio Bawah (Audio Player Bar) ── */
 [data-theme="darkweb"] .audio-player {
   background: #020403 !important;
   border-top: 3px solid #00ff66 !important;
@@ -704,6 +731,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #63a880 !important;
 }
 
+/* ── Tombol Play Utama & Kontrol Pemutar ── */
 [data-theme="darkweb"] .player-play-btn {
   background: #00ff66 !important;
   color: #030605 !important;
@@ -736,6 +764,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 0 0 10px #00ff66 !important;
 }
 
+/* ── Seekbar & Slider Durasi Lagu ── */
 [data-theme="darkweb"] .seek-track {
   background: #070e0a !important;
   border: 1px solid #143b25 !important;
@@ -752,6 +781,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 0 0 10px #00ff66 !important;
 }
 
+/* ── Tombol & Form Input (Terminal Cyberpunk Style) ── */
 [data-theme="darkweb"] .btn {
   background: #070e0a;
   color: #00ff66;
@@ -783,6 +813,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   color: #27523a !important;
 }
 
+/* ── Lencana (Badge) & Tombol Pemilih Tema Aktif ── */
 [data-theme="darkweb"] .badge {
   background: #00ff66 !important;
   color: #030605 !important;
@@ -797,6 +828,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 0 0 10px #00ff66 !important;
 }
 
+/* ── Scrollbar Terminal Hacker (Track & Thumb Hijau Neon) ── */
 [data-theme="darkweb"] ::-webkit-scrollbar-track {
   background: #070e0a !important;
   border-left: 1px solid #143b25 !important;
