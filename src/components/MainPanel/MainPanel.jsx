@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import usePlayerStore from '../../store/usePlayerStore';
 import { searchSongs, getAlbumArt, getLyrics, formatDuration } from '../../lib/api';
+import { getActiveLyricIndex } from '../../lib/lrc';
 import './MainPanel.css';
 
 const PLAY_ICON = (
@@ -19,9 +20,11 @@ export default function MainPanel() {
   const {
     songs, searchQuery, replaceQueue, currentIndex, addAllToQueue,
     queue, isPlaying, setIsPlaying, showLyrics, setShowLyrics,
-    lyricsContent, setLyricsContent, currentAlbumArt, setCurrentAlbumArt,
+    lyricsContent, setLyricsContent, parsedLyrics,
+    currentAlbumArt, setCurrentAlbumArt,
     albumArtCache, setAlbumArt, showToast, setCurrentIndex,
     activeView, activePlaylistId,
+    currentTime, seekTo,
   } = usePlayerStore();
 
   const [displaySongs, setDisplaySongs] = useState([]);
@@ -46,7 +49,7 @@ export default function MainPanel() {
     );
   }, [songs, searchQuery]);
 
-  // Load album art when current song changes
+  // Load album art when currentSong changes
   useEffect(() => {
     if (!currentSong) {
       setCurrentAlbumArt(null);
@@ -70,7 +73,23 @@ export default function MainPanel() {
       .finally(() => setLoadingArt(false));
   }, [currentSong?.path]);
 
-  async function handleToggleLyrics() {
+  // Auto-sync lyrics when currentSong changes if lyrics view is active
+  useEffect(() => {
+    if (!currentSong) {
+      setLyricsContent(null);
+      return;
+    }
+    if (showLyrics) {
+      getLyrics(currentSong.path)
+        .then((lyrics) => {
+          setLyricsContent(lyrics || null);
+        })
+        .catch(() => setLyricsContent(null));
+    }
+  }, [currentSong?.path, showLyrics]);
+
+  async function handleToggleLyrics(e) {
+    if (e) e.stopPropagation();
     if (!currentSong) return;
     if (showLyrics) {
       setShowLyrics(false);
@@ -132,26 +151,16 @@ export default function MainPanel() {
         onKeyDown={(e) => e.key === 'Enter' && handleToggleLyrics()}
       >
         {showLyrics ? (
-          /* ── Lyrics View ── */
-          <div className="lyrics-view">
-            <div className="lyrics-header">
-              <span className="badge badge-red">LYRICS</span>
-              <span className="lyrics-song-name text-truncate">
-                {currentSong?.title} — {currentSong?.artist || 'Unknown'}
-              </span>
-              <span className="lyrics-close">✕ Click to close</span>
-            </div>
-            <div className="lyrics-content">
-              {lyricsContent ? (
-                <pre className="lyrics-text">{lyricsContent}</pre>
-              ) : (
-                <div className="lyrics-empty">
-                  <span>No lyrics embedded in this file.</span>
-                  <span className="mono" style={{fontSize: '12px', color: '#aaa'}}>Embed USLT tag in the MP3 to display lyrics.</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <LyricsView
+            currentSong={currentSong}
+            parsedLyrics={parsedLyrics}
+            currentTime={currentTime}
+            seekTo={seekTo}
+            onClose={(e) => {
+              if (e) e.stopPropagation();
+              setShowLyrics(false);
+            }}
+          />
         ) : currentSong ? (
           /* ── Album Art View ── */
           <div className="album-art-view">
@@ -322,6 +331,101 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay }) {
         >
           {isCurrent && isPlaying ? '❚❚' : '▶'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function LyricsView({ currentSong, parsedLyrics, currentTime, seekTo, onClose }) {
+  const activeLineRef = useRef(null);
+  const [userScrolled, setUserScrolled] = useState(false);
+  const scrollTimeoutRef = useRef(null);
+
+  const activeIndex = useMemo(
+    () => getActiveLyricIndex(parsedLyrics, currentTime),
+    [parsedLyrics, currentTime]
+  );
+
+  const isSynced = parsedLyrics.length > 0 && parsedLyrics.some((l) => l.time >= 0);
+
+  // Auto-scroll to active line
+  useEffect(() => {
+    if (activeIndex >= 0 && activeLineRef.current && !userScrolled) {
+      activeLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [activeIndex, userScrolled]);
+
+  // Clean up scroll timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
+
+  const handleScroll = () => {
+    setUserScrolled(true);
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      setUserScrolled(false);
+    }, 2500);
+  };
+
+  const handleLineClick = (lineTime) => {
+    if (lineTime >= 0) {
+      seekTo(lineTime);
+    }
+  };
+
+  return (
+    <div className="lyrics-view" onClick={(e) => e.stopPropagation()}>
+      <div className="lyrics-header">
+        <span className={`badge ${isSynced ? 'badge-red' : 'badge-blue'}`}>
+          {isSynced ? 'SYNCED' : 'LYRICS'}
+        </span>
+        <span className="lyrics-song-name text-truncate">
+          {currentSong?.title} — {currentSong?.artist || 'Unknown'}
+        </span>
+        <button
+          className="lyrics-close-btn"
+          onClick={onClose}
+          aria-label="Close lyrics"
+          title="Close lyrics"
+        >
+          ✕ Close
+        </button>
+      </div>
+
+      <div className="lyrics-content" onScroll={handleScroll}>
+        {parsedLyrics && parsedLyrics.length > 0 ? (
+          <div className="lyrics-lines">
+            {parsedLyrics.map((line, idx) => {
+              const isActive = isSynced && idx === activeIndex;
+              const isPast = isSynced && activeIndex >= 0 && idx < activeIndex;
+
+              return (
+                <div
+                  key={line.id ?? idx}
+                  ref={isActive ? activeLineRef : null}
+                  className={`lyrics-line ${isActive ? 'active' : ''} ${isPast ? 'past' : ''} ${line.time >= 0 ? 'clickable' : ''}`}
+                  onClick={() => handleLineClick(line.time)}
+                  title={line.time >= 0 ? `Jump to ${formatDuration(line.time)}` : undefined}
+                >
+                  {line.text || '♪'}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="lyrics-empty">
+            <span>No lyrics found for this file.</span>
+            <span className="mono" style={{ fontSize: '12px', color: '#aaa' }}>
+              Add a .lrc file or embed USLT/SYLT tags to display synced lyrics.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

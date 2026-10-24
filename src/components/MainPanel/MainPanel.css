@@ -132,38 +132,122 @@
   flex-direction: column;
   background: var(--clr-black);
   color: var(--clr-white);
+  position: relative;
+  overflow: hidden;
 }
+
 .lyrics-header {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: 2px solid #333;
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 2px solid #222;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 2;
   flex-shrink: 0;
 }
+
 .lyrics-song-name {
   flex: 1;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
-.lyrics-close {
-  font-size: 11px;
+
+.lyrics-close-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #aaa;
   font-family: var(--font-mono);
-  color: #666;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 #000;
+  transition: all var(--transition-fast);
 }
+.lyrics-close-btn:hover {
+  background: var(--clr-red);
+  border-color: var(--clr-red);
+  color: white;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #000;
+}
+
 .lyrics-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--sp-4) var(--sp-5);
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+  /* Top and bottom gradient fade mask for smooth lyrics entry/exit */
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
 }
-.lyrics-text {
-  white-space: pre-wrap;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.8;
-  color: #ddd;
+
+.lyrics-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 70px var(--sp-6);
+  gap: var(--sp-3);
+  min-height: 100%;
 }
+
+.lyrics-line {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  text-align: center;
+  max-width: 90%;
+  border-radius: 4px;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              font-size 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              text-shadow 0.25s ease;
+  user-select: none;
+}
+
+.lyrics-line.clickable {
+  cursor: pointer;
+}
+
+.lyrics-line:hover {
+  color: #ccc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lyrics-line.past {
+  color: #444;
+}
+
+.lyrics-line.active {
+  color: var(--clr-yellow);
+  font-size: 20px;
+  font-weight: 800;
+  transform: scale(1.06);
+  text-shadow: 0 0 16px rgba(255, 230, 0, 0.45);
+  background: rgba(255, 230, 0, 0.08);
+  border: 1px solid rgba(255, 230, 0, 0.25);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* Theme support for active lyrics line */
+[data-theme="bw"] .lyrics-line.active {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+
+[data-theme="darkweb"] .lyrics-line.active {
+  color: #00ff66;
+  text-shadow: 0 0 16px rgba(0, 255, 102, 0.7);
+  background: rgba(0, 255, 102, 0.1);
+  border-color: #00ff66;
+}
+
 .lyrics-empty {
   display: flex;
   flex-direction: column;

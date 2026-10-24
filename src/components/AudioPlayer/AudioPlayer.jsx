@@ -70,6 +70,7 @@ export default function AudioPlayer() {
     repeatMode, cycleRepeat,
     showToast,
     albumArtCache, setAlbumArt,
+    seekRequest,
   } = usePlayerStore();
 
   const currentSong = queue[currentIndex] ?? null;
@@ -258,6 +259,15 @@ export default function AudioPlayer() {
     if (!audio) return;
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
+
+  // ── Handle external seek requests (e.g. clicking lyrics line) ─
+  useEffect(() => {
+    if (seekRequest !== null && audioRef.current) {
+      audioRef.current.currentTime = seekRequest;
+      setCurrentTime(seekRequest);
+      usePlayerStore.setState({ seekRequest: null });
+    }
+  }, [seekRequest, setCurrentTime]);
 
   // ── Audio event handlers ─────────────────────────────────────
   function handlePlay() {

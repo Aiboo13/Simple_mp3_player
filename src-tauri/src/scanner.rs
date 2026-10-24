@@ -101,12 +101,14 @@ fn extract_metadata(path: &Path) -> MetadataResult {
         .map(|t| !t.pictures().is_empty())
         .unwrap_or(false);
 
-    let has_lyrics = tag
-        .map(|t| {
-            t.get_string(&ItemKey::Lyrics).is_some()
-                || t.get(&ItemKey::Lyrics).is_some()
-        })
-        .unwrap_or(false);
+    let has_lrc = path.with_extension("lrc").is_file() || path.with_extension("LRC").is_file();
+    let has_lyrics = has_lrc
+        || tag
+            .map(|t| {
+                t.get_string(&ItemKey::Lyrics).is_some()
+                    || t.get(&ItemKey::Lyrics).is_some()
+            })
+            .unwrap_or(false);
 
     Some((title, artist, album, album_artist, track_number, duration_secs, year, genre, has_cover, has_lyrics))
 }
@@ -139,9 +141,33 @@ pub fn get_album_art_data(path: &str) -> Option<String> {
     Some(format!("data:{};base64,{}", mime, encoded))
 }
 
-/// Extract lyrics from audio file
+/// Extract lyrics from audio file or adjacent .lrc file
 pub fn get_lyrics_data(path: &str) -> Option<String> {
-    let tagged_file = Probe::open(Path::new(path))
+    let p = Path::new(path);
+
+    // 1. Check sidecar .lrc / .LRC file first
+    let lrc_path = p.with_extension("lrc");
+    if lrc_path.is_file() {
+        if let Ok(content) = std::fs::read_to_string(&lrc_path) {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    let lrc_upper = p.with_extension("LRC");
+    if lrc_upper.is_file() {
+        if let Ok(content) = std::fs::read_to_string(&lrc_upper) {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    // 2. Fall back to embedded tag in audio file
+    let tagged_file = Probe::open(p)
         .ok()?
         .guess_file_type()
         .ok()?
@@ -150,9 +176,12 @@ pub fn get_lyrics_data(path: &str) -> Option<String> {
 
     let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag())?;
 
-    // Try USLT (unsynchronized lyrics) first
+    // Try USLT (unsynchronized lyrics) or generic Lyrics item
     if let Some(lyrics) = tag.get_string(&ItemKey::Lyrics) {
-        return Some(lyrics.to_string());
+        let trimmed = lyrics.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
     }
 
     None

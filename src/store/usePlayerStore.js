@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { parseLrc } from '../lib/lrc';
 
 const usePlayerStore = create((set, get) => ({
   // ── Library ──────────────────────────────────────────────
@@ -116,7 +117,14 @@ const usePlayerStore = create((set, get) => ({
   setShowLyrics: (showLyrics) => set({ showLyrics }),
 
   lyricsContent: null,
-  setLyricsContent: (lyricsContent) => set({ lyricsContent }),
+  parsedLyrics: [],
+  setLyricsContent: (lyricsContent) => {
+    const parsedLyrics = parseLrc(lyricsContent);
+    set({ lyricsContent, parsedLyrics });
+  },
+
+  seekRequest: null,
+  seekTo: (seekRequest) => set({ seekRequest }),
 
   currentAlbumArt: null,
   setCurrentAlbumArt: (currentAlbumArt) => set({ currentAlbumArt }),
