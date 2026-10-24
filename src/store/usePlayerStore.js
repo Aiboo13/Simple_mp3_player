@@ -17,6 +17,15 @@ const usePlayerStore = create((set, get) => ({
   // ── Library ──────────────────────────────────────────────
   songs: [],
   setSongs: (songs) => set({ songs }),
+  appendSongsBatch: (batch) =>
+    set((state) => {
+      if (!Array.isArray(batch) || batch.length === 0) return {};
+      const existingMap = new Map(state.songs.map((s) => [s.path, s]));
+      for (const song of batch) {
+        existingMap.set(song.path, song);
+      }
+      return { songs: Array.from(existingMap.values()) };
+    }),
 
   playlists: [],
   setPlaylists: (playlists) => set({ playlists }),
@@ -37,12 +46,28 @@ const usePlayerStore = create((set, get) => ({
   searchQuery: '',
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
+  // ── Audio Sink & Element Reference (PRD v1.5 Strict Mute) ──
+  audioElement: null,
+  setAudioElement: (audioElement) => set({ audioElement }),
+  strictMuteSink: () => {
+    const el = get().audioElement;
+    if (el) {
+      el.muted = true;
+      el.volume = 0;
+    }
+  },
+
   // ── Queue ─────────────────────────────────────────────────
   queue: [],
   originalQueue: [],
   setQueue: (queue) => set({ queue }),
   currentIndex: -1,
-  setCurrentIndex: (currentIndex) => set({ currentIndex }),
+  setCurrentIndex: (currentIndex) => {
+    if (currentIndex !== get().currentIndex) {
+      get().strictMuteSink();
+    }
+    set({ currentIndex });
+  },
 
   addToQueue: (song) =>
     set((state) => ({
@@ -68,6 +93,7 @@ const usePlayerStore = create((set, get) => ({
 
     // If queue is empty or nothing is playing, play immediately
     if (queue.length === 0 || currentIndex === -1) {
+      get().strictMuteSink();
       set({
         queue: [song],
         currentIndex: 0,
@@ -144,6 +170,7 @@ const usePlayerStore = create((set, get) => ({
   },
 
   replaceQueue: (songs, startIndex = 0) => {
+    get().strictMuteSink();
     const { isShuffled } = get();
     if (isShuffled && songs.length > 1) {
       const selectedSong = songs[startIndex];
@@ -309,6 +336,9 @@ const usePlayerStore = create((set, get) => ({
     }
     lastSkipTimestamp = now;
 
+    // Strict Mute on Transition: Immediately silence sink to prevent any spill
+    get().strictMuteSink();
+
     const { queue, currentIndex, repeatMode } = get();
     if (queue.length === 0) return;
 
@@ -336,6 +366,9 @@ const usePlayerStore = create((set, get) => ({
       return;
     }
     lastSkipTimestamp = now;
+
+    // Strict Mute on Transition: Immediately silence sink to prevent any spill
+    get().strictMuteSink();
 
     const { queue, currentIndex, repeatMode, currentTime } = get();
     if (queue.length === 0) return;

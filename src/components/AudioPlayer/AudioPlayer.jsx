@@ -54,6 +54,83 @@ const IconRepeat = ({ mode }) => mode === 'one' ? (
   </svg>
 );
 
+// Helper to confirm decoder has stabilized and is rendering frames continuously (PRD v1.5 Req 4.A)
+function waitForDecoderStabilization(audio, targetSeq, isPure, transitionSeqRef) {
+  return new Promise((resolve) => {
+    if (targetSeq !== transitionSeqRef.current) {
+      resolve(false);
+      return;
+    }
+    if (audio.paused) {
+      resolve(true);
+      return;
+    }
+
+    let resolved = false;
+    let initialTime = audio.currentTime;
+    let progressCount = 0;
+    const requiredChecks = isPure ? 3 : 2;
+    let isStalled = false;
+
+    const cleanup = () => {
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('stalled', onStalled);
+      clearInterval(interval);
+      clearTimeout(failsafeTimer);
+    };
+
+    const done = (success) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve(success);
+      }
+    };
+
+    const onWaiting = () => {
+      isStalled = true;
+      progressCount = 0;
+    };
+
+    const onStalled = () => {
+      isStalled = true;
+      progressCount = 0;
+    };
+
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('stalled', onStalled);
+
+    const interval = setInterval(() => {
+      if (targetSeq !== transitionSeqRef.current) {
+        done(false);
+        return;
+      }
+      if (audio.paused) {
+        done(true);
+        return;
+      }
+
+      const cur = audio.currentTime;
+      if (cur > initialTime && !isStalled) {
+        progressCount++;
+        initialTime = cur;
+        if (progressCount >= requiredChecks) {
+          done(true);
+        }
+      } else if (cur > initialTime && isStalled) {
+        isStalled = false;
+        progressCount = 1;
+        initialTime = cur;
+      }
+    }, 25);
+
+    // Failsafe safety timeout (1200ms) to ensure playback never indefinitely stays muted
+    const failsafeTimer = setTimeout(() => {
+      done(true);
+    }, 1200);
+  });
+}
+
 export default function AudioPlayer() {
   const audioRef = useRef(null);
   const seekRef = useRef(null);
@@ -121,6 +198,16 @@ export default function AudioPlayer() {
     return loadPromise;
   }, [currentSong?.path]);
 
+  // Register audio ref with store so skip actions can synchronously mute sink immediately
+  useEffect(() => {
+    if (audioRef.current) {
+      usePlayerStore.getState().setAudioElement(audioRef.current);
+    }
+    return () => {
+      usePlayerStore.getState().setAudioElement(null);
+    };
+  }, []);
+
   // Clean up all cached blob URLs on unmount
   useEffect(() => {
     return () => {
@@ -157,62 +244,173 @@ export default function AudioPlayer() {
     return queue[nextIdx] ?? null;
   }, [queue, currentIndex, repeatMode]);
 
-  // ── Pre-load next song in background ─────────────────────────
+  // Helper to determine the previous song in queue
+  const getPrevSong = useCallback(() => {
+    if (queue.length === 0) return null;
+    let prevIdx = currentIndex - 1;
+    if (prevIdx < 0) {
+      if (repeatMode === 'all') prevIdx = queue.length - 1;
+      else return null;
+    }
+    return queue[prevIdx] ?? null;
+  }, [queue, currentIndex, repeatMode]);
+
+  // ── Pre-buffering Pure Audio & Adjacent Tracks (PRD v1.5 Requirement 4.C) ──
   useEffect(() => {
     const nextSong = getNextSong();
-    if (!nextSong || !nextSong.path || nextSong.path === currentSong?.path) return;
+    const prevSong = getPrevSong();
 
-    // 600ms delay so current song gets top priority when starting
+    // Pure audio pre-buffering: start quickly (400ms) since no metadata/album-art overhead exists
+    // Standard tracks: pre-buffer after 1500ms
+    const isPureNext = nextSong && nextSong.has_metadata === false;
+    const preloadDelay = isPureNext ? 400 : 1500;
+
     const timer = setTimeout(() => {
-      console.log('[AudioPlayer] ⚡ Pre-loading next track in background:', nextSong.title);
-      getOrLoadBlob(nextSong.path).catch((err) => {
-        console.warn('[AudioPlayer] Background pre-load error:', err);
-      });
+      const doPreload = () => {
+        if (nextSong?.path && nextSong.path !== currentSong?.path) {
+          getOrLoadBlob(nextSong.path).catch((err) => {
+            console.warn('[AudioPlayer] Pre-buffering next track error:', err);
+          });
 
-      // Also pre-fetch album art if not yet cached
-      if (nextSong.has_cover && !albumArtCache[nextSong.path]) {
-        getAlbumArt(nextSong.path)
-          .then((art) => {
-            if (art) setAlbumArt(nextSong.path, art);
-          })
-          .catch(() => {});
+          // PRD 4.C: Skip album art lookup if next track is pure audio or has no cover
+          if (nextSong.has_metadata !== false && nextSong.has_cover && !albumArtCache[nextSong.path]) {
+            getAlbumArt(nextSong.path)
+              .then((art) => {
+                if (art) setAlbumArt(nextSong.path, art);
+              })
+              .catch(() => {});
+          }
+        }
+
+        // Also pre-buffer prevSong so PgUp transitions are instantaneous cache hits
+        if (prevSong?.path && prevSong.path !== currentSong?.path && prevSong.path !== nextSong?.path) {
+          getOrLoadBlob(prevSong.path).catch(() => {});
+        }
+      };
+
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(doPreload, { timeout: 2500 });
+      } else {
+        doPreload();
       }
-    }, 600);
+    }, preloadDelay);
 
     return () => clearTimeout(timer);
-  }, [currentSong?.path, getNextSong, getOrLoadBlob, albumArtCache, setAlbumArt]);
+  }, [currentSong?.path, getNextSong, getPrevSong, getOrLoadBlob, albumArtCache, setAlbumArt]);
 
-  // Track whether we are actively loading/switching a track to prevent unwanted pause events
-  const isLoadingTrackRef = useRef(false);
+  // ── Strict Sequential State Machine for Audio Transitions (PRD v1.5 Req 4.A & 4.C) ──
+  // Sequence: Pause/Stop (A) -> Flush Buffer -> Load File (B) -> Wait Buffer -> Play (B) -> Verify Decoder Stabilization -> Unmute
+  // Speaker is strictly muted during transition and remains muted until continuous rendering is verified.
+  const transitionSeqRef = useRef(0);
+  const isTransitioningRef = useRef(false);
   const lastPlayToggleRef = useRef(0);
+
+  const handleTogglePlay = useCallback(() => {
+    const now = Date.now();
+    if (now - lastPlayToggleRef.current < 150) return;
+    lastPlayToggleRef.current = now;
+
+    const audio = audioRef.current;
+    if (!currentSong) return;
+
+    if (isPlaying) {
+      if (audio && !audio.paused) {
+        audio.pause();
+      }
+      isTransitioningRef.current = false;
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(true);
+      if (audio && audio.paused && audio.src) {
+        const p = audio.play();
+        if (p !== undefined) {
+          p.catch((err) => {
+            if (err.name !== 'AbortError') {
+              console.warn('[AudioPlayer] Play toggle error:', err);
+            }
+          });
+        }
+      }
+    }
+  }, [isPlaying, currentSong, setIsPlaying]);
 
   // ── Audio source management ──────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong) return;
 
-    let isCancelled = false;
+    const seq = ++transitionSeqRef.current;
+    isTransitioningRef.current = true;
 
-    const loadAndPlay = async () => {
+    const executeStrictTransition = async () => {
       try {
-        isLoadingTrackRef.current = true;
-        // Safely pause currently playing audio before swapping source
+        // ── Phase 1: Strict Mute on Transition (PRD v1.5 Req 4.A) ──
+        // Silence speaker immediately so no bleed or preview audio can escape
+        audio.muted = true;
+        audio.volume = 0;
         if (!audio.paused) {
           audio.pause();
         }
 
+        // ── Phase 2: Flush/Kosongkan Audio Buffer ──
+        // Remove src and load() to completely discard decoder buffer & pipeline state
+        audio.removeAttribute('src');
+        audio.load();
+        audio.currentTime = 0;
+        setCurrentTime(0);
+        setDuration(0);
+
+        // Check if aborted by a subsequent skip/PgDn
+        if (seq !== transitionSeqRef.current) return;
+
+        // ── Phase 3: Pre-buffering Pure Audio / Load File (PRD v1.5 Req 4.C) ──
+        const isPureAudio = currentSong.has_metadata === false;
         const isCached = blobCacheRef.current.has(currentSong.path);
         console.log(
-          `[AudioPlayer] ${isCached ? '⚡ Instant cache hit' : 'Loading'} for:`,
+          `[AudioPlayer] ⚡ State machine: loading (${isPureAudio ? 'Pure Audio, ' : ''}${isCached ? 'cached' : 'disk I/O'}) for:`,
           currentSong.title
         );
 
         const blobUrl = await getOrLoadBlob(currentSong.path);
-        if (isCancelled || !blobUrl) return;
+        if (seq !== transitionSeqRef.current || !blobUrl) return;
 
         audio.src = blobUrl;
         audio.load();
 
+        // ── Phase 4: Tunggu hingga buffer awal Lagu B terisi ──
+        // Wait until HTMLMediaElement reaches HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4)
+        await new Promise((resolve) => {
+          if (audio.readyState >= 3) {
+            resolve();
+            return;
+          }
+
+          let done = false;
+          const finish = () => {
+            if (!done) {
+              done = true;
+              audio.removeEventListener('canplay', finish);
+              audio.removeEventListener('canplaythrough', finish);
+              audio.removeEventListener('error', finish);
+              resolve();
+            }
+          };
+
+          audio.addEventListener('canplay', finish, { once: true });
+          audio.addEventListener('canplaythrough', finish, { once: true });
+          audio.addEventListener('error', finish, { once: true });
+
+          // Safety fallback timeout (1200ms) to ensure transition never hangs
+          setTimeout(finish, 1200);
+        });
+
+        if (seq !== transitionSeqRef.current) return;
+
+        if (!isNaN(audio.duration) && audio.duration > 0) {
+          setDuration(audio.duration);
+        }
+
+        // ── Phase 5: Play (Lagu B) & Decoder Stabilization (PRD v1.5 Req 4.A) ──
         const shouldPlay = usePlayerStore.getState().isPlaying;
         if (shouldPlay) {
           try {
@@ -221,36 +419,54 @@ export default function AudioPlayer() {
               await playPromise;
             }
           } catch (playErr) {
-            if (isCancelled) return;
+            if (seq !== transitionSeqRef.current) return;
             if (playErr.name !== 'AbortError') {
               console.warn('[AudioPlayer] audio.play() rejected:', playErr);
               setIsPlaying(false);
+              return;
             }
           }
         }
+
+        if (seq !== transitionSeqRef.current) return;
+
+        // Strict Unmute Condition: Sink is ONLY unmuted after decoder confirms stable continuous playback
+        if (shouldPlay && !audio.paused) {
+          const isStable = await waitForDecoderStabilization(audio, seq, isPureAudio, transitionSeqRef);
+          if (seq !== transitionSeqRef.current || !isStable) return;
+        }
+
+        // Restore user's actual volume & mute settings now that audio is confirmed stably rendering
+        const currentMuted = usePlayerStore.getState().isMuted;
+        const currentVol = usePlayerStore.getState().volume;
+        audio.muted = currentMuted;
+        audio.volume = currentMuted ? 0 : currentVol;
       } catch (err) {
-        if (isCancelled) return;
-        console.error('[AudioPlayer] Failed to load audio file:', err);
+        if (seq !== transitionSeqRef.current) return;
+        console.error('[AudioPlayer] Strict transition failed:', err);
         showToast('Playback error: ' + (err.message || err), 'error');
         setIsPlaying(false);
       } finally {
-        isLoadingTrackRef.current = false;
+        if (seq === transitionSeqRef.current) {
+          isTransitioningRef.current = false;
+        }
       }
     };
 
-    loadAndPlay();
+    executeStrictTransition();
 
     return () => {
-      isCancelled = true;
+      // Invalidate this sequence if track changes before completion
+      transitionSeqRef.current++;
     };
-  }, [currentSong?.id, currentSong?.path, getOrLoadBlob]);
+  }, [currentSong?.id, currentSong?.path, getOrLoadBlob, setCurrentTime, setDuration, setIsPlaying, showToast]);
 
   // ── Sync play/pause when user toggles play button ─────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong || !audio.src) return;
     if (isPlaying) {
-      if (audio.paused) {
+      if (audio.paused && !isTransitioningRef.current) {
         const p = audio.play();
         if (p !== undefined) {
           p.catch((err) => {
@@ -261,17 +477,21 @@ export default function AudioPlayer() {
         }
       }
     } else {
+      // Pause must always execute immediately!
       if (!audio.paused) {
         audio.pause();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, currentSong]);
 
   // ── Sync volume ──────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.volume = isMuted ? 0 : volume;
+    if (!isTransitioningRef.current) {
+      audio.volume = isMuted ? 0 : volume;
+      audio.muted = isMuted;
+    }
   }, [volume, isMuted]);
 
   // ── Handle external seek requests (e.g. clicking lyrics line) ─
@@ -285,35 +505,38 @@ export default function AudioPlayer() {
 
   // ── Audio event handlers ─────────────────────────────────────
   function handlePlay() {
-    setIsPlaying(true);
+    if (!isTransitioningRef.current) {
+      setIsPlaying(true);
+    }
   }
 
   function handlePause() {
-    if (!isLoadingTrackRef.current) {
-      setIsPlaying(false);
-    }
+    setIsPlaying(false);
   }
 
   function handleTimeUpdate() {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || isTransitioningRef.current) return;
     setCurrentTime(audio.currentTime);
   }
 
   function handleLoadedMetadata() {
     const audio = audioRef.current;
     if (!audio) return;
-    setDuration(audio.duration);
+    if (!isNaN(audio.duration) && audio.duration > 0) {
+      setDuration(audio.duration);
+    }
   }
 
   function handleEnded() {
+    if (isTransitioningRef.current) return;
     // PRD Acceptance Criteria: Always fetch latest queue reference when song ends
     usePlayerStore.getState().playNextSong(false);
   }
 
   function handleAudioError() {
     const audio = audioRef.current;
-    if (!audio || !currentSong) return;
+    if (!audio || !currentSong || isTransitioningRef.current) return;
 
     const error = audio.error;
     console.error('[AudioPlayer] HTML5 Audio error:', error, audio.src);
@@ -338,7 +561,7 @@ export default function AudioPlayer() {
   // ── Seek control ─────────────────────────────────────────────
   function handleSeek(e) {
     const audio = audioRef.current;
-    if (!audio || !duration) return;
+    if (!audio || !duration || isTransitioningRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
@@ -411,12 +634,7 @@ export default function AudioPlayer() {
           <button
             id="play-pause-btn"
             className="btn btn-icon player-play-btn"
-            onClick={() => {
-              const now = Date.now();
-              if (now - lastPlayToggleRef.current < 200) return;
-              lastPlayToggleRef.current = now;
-              setIsPlaying(!isPlaying);
-            }}
+            onClick={handleTogglePlay}
             disabled={!currentSong}
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >

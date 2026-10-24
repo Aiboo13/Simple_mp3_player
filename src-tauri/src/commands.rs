@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use rusqlite::params;
+use std::fs::File;
+use std::io::{BufReader, Read};
 
 use crate::db::DbState;
 use crate::scanner;
@@ -19,6 +21,7 @@ pub struct Song {
     pub genre: Option<String>,
     pub has_cover: bool,
     pub has_lyrics: bool,
+    pub has_metadata: bool,
     pub file_size: Option<i64>,
     pub added_at: i64,
 }
@@ -38,10 +41,21 @@ pub struct MusicDir {
     pub added_at: i64,
 }
 
+// Dedicated high-priority thread pool for audio I/O to ensure zero stutter during disk contention
+static AUDIO_IO_POOL: once_cell::sync::Lazy<tokio::runtime::Runtime> = once_cell::sync::Lazy::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("high-prio-audio")
+        .enable_all()
+        .build()
+        .expect("Failed to initialize dedicated audio IO runtime")
+});
+
 // ─── Commands ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub async fn scan_directory(
+    app: tauri::AppHandle,
     path: String,
     state: State<'_, DbState>,
 ) -> Result<usize, String> {
@@ -52,7 +66,7 @@ pub async fn scan_directory(
             params![path],
         ).map_err(|e| e.to_string())?;
     }
-    scanner::scan_dir(&state, &path)
+    scanner::scan_dir_progressive(&app, &state, &path).await
 }
 
 #[tauri::command]
@@ -108,7 +122,7 @@ pub async fn get_all_songs(
 
     let sql = format!(
         "SELECT id, path, title, artist, album, album_artist, track_number,
-                duration_secs, year, genre, has_cover, has_lyrics, file_size, added_at
+                duration_secs, year, genre, has_cover, has_lyrics, has_metadata, file_size, added_at
          FROM songs ORDER BY {} {}",
         sort_col, order
     );
@@ -128,8 +142,9 @@ pub async fn get_all_songs(
             genre: row.get(9)?,
             has_cover: row.get::<_, i64>(10)? != 0,
             has_lyrics: row.get::<_, i64>(11)? != 0,
-            file_size: row.get(12)?,
-            added_at: row.get(13)?,
+            has_metadata: row.get::<_, i64>(12)? != 0,
+            file_size: row.get(13)?,
+            added_at: row.get(14)?,
         })
     })
     .map_err(|e| e.to_string())?
@@ -146,7 +161,7 @@ pub async fn search_songs(query: String, state: State<'_, DbState>) -> Result<Ve
 
     let mut stmt = conn.prepare(
         "SELECT id, path, title, artist, album, album_artist, track_number,
-                duration_secs, year, genre, has_cover, has_lyrics, file_size, added_at
+                duration_secs, year, genre, has_cover, has_lyrics, has_metadata, file_size, added_at
          FROM songs
          WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
          ORDER BY title COLLATE NOCASE ASC",
@@ -166,8 +181,9 @@ pub async fn search_songs(query: String, state: State<'_, DbState>) -> Result<Ve
             genre: row.get(9)?,
             has_cover: row.get::<_, i64>(10)? != 0,
             has_lyrics: row.get::<_, i64>(11)? != 0,
-            file_size: row.get(12)?,
-            added_at: row.get(13)?,
+            has_metadata: row.get::<_, i64>(12)? != 0,
+            file_size: row.get(13)?,
+            added_at: row.get(14)?,
         })
     })
     .map_err(|e| e.to_string())?
@@ -265,7 +281,7 @@ pub async fn get_playlist_songs(
     let mut stmt = conn.prepare(
         "SELECT s.id, s.path, s.title, s.artist, s.album, s.album_artist,
                 s.track_number, s.duration_secs, s.year, s.genre,
-                s.has_cover, s.has_lyrics, s.file_size, s.added_at
+                s.has_cover, s.has_lyrics, s.has_metadata, s.file_size, s.added_at
          FROM songs s
          JOIN playlist_songs ps ON s.id = ps.song_id
          WHERE ps.playlist_id = ?1
@@ -286,8 +302,9 @@ pub async fn get_playlist_songs(
             genre: row.get(9)?,
             has_cover: row.get::<_, i64>(10)? != 0,
             has_lyrics: row.get::<_, i64>(11)? != 0,
-            file_size: row.get(12)?,
-            added_at: row.get(13)?,
+            has_metadata: row.get::<_, i64>(12)? != 0,
+            file_size: row.get(13)?,
+            added_at: row.get(14)?,
         })
     })
     .map_err(|e| e.to_string())?
@@ -299,6 +316,9 @@ pub async fn get_playlist_songs(
 
 #[tauri::command]
 pub async fn get_lyrics(path: String) -> Result<Option<String>, String> {
+    if path.is_empty() {
+        return Ok(None);
+    }
     tokio::task::spawn_blocking(move || {
         Ok(scanner::get_lyrics_data(&path))
     })
@@ -308,6 +328,9 @@ pub async fn get_lyrics(path: String) -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
+    if path.is_empty() {
+        return Ok(None);
+    }
     tokio::task::spawn_blocking(move || {
         Ok(scanner::get_album_art_data(&path))
     })
@@ -317,9 +340,22 @@ pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn read_audio_file(path: String) -> Result<Vec<u8>, String> {
-    tokio::task::spawn_blocking(move || {
-        std::fs::read(&path).map_err(|e| format!("Failed to read audio file: {}", e))
-    })
-    .await
-    .map_err(|e| format!("Task execution error: {}", e))?
+    if path.is_empty() {
+        return Err("Audio path is empty".into());
+    }
+
+    AUDIO_IO_POOL
+        .spawn_blocking(move || {
+            let file = File::open(&path).map_err(|e| format!("Failed to open file: {}", e))?;
+            let metadata = file.metadata().map_err(|e| format!("Metadata error: {}", e))?;
+            let size = metadata.len() as usize;
+
+            // Use 256KB buffered reader for high throughput sequential read
+            let mut reader = BufReader::with_capacity(256 * 1024, file);
+            let mut buffer = Vec::with_capacity(size);
+            reader.read_to_end(&mut buffer).map_err(|e| format!("Failed to read audio: {}", e))?;
+            Ok(buffer)
+        })
+        .await
+        .map_err(|e| format!("Audio task execution error: {}", e))?
 }

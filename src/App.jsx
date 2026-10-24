@@ -73,10 +73,80 @@ export default function App() {
         usePlayerStore.getState().playNextSong(true);
         return;
       }
+
+      // 5. Space -> Toggle Play/Pause
+      if (e.code === 'Space' || e.key === ' ') {
+        const tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
+          e.preventDefault();
+          const state = usePlayerStore.getState();
+          const audio = state.audioElement;
+          if (state.queue.length > 0 && state.currentIndex >= 0) {
+            if (state.isPlaying) {
+              if (audio && !audio.paused) audio.pause();
+              state.setIsPlaying(false);
+            } else {
+              state.setIsPlaying(true);
+              if (audio && audio.paused && audio.src) {
+                audio.play().catch(() => {});
+              }
+            }
+          }
+          return;
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Progressive Directory Scanning Listeners (PRD 3.B: Lazy Loading / Progressive Rendering)
+  useEffect(() => {
+    let unlistenBatch = null;
+    let unlistenProgress = null;
+    let unlistenComplete = null;
+
+    async function setupScanListeners() {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+
+        unlistenBatch = await listen('scan-batch', (event) => {
+          if (Array.isArray(event.payload) && event.payload.length > 0) {
+            usePlayerStore.getState().appendSongsBatch(event.payload);
+          }
+        });
+
+        unlistenProgress = await listen('scan-progress', (event) => {
+          const { count, current_file } = event.payload || {};
+          usePlayerStore
+            .getState()
+            .setScanProgress(`Found ${count} tracks...`);
+        });
+
+        unlistenComplete = await listen('scan-complete', (event) => {
+          const store = usePlayerStore.getState();
+          store.setIsScanning(false);
+          store.setScanProgress('');
+          getAllSongs(store.sortBy, store.sortOrder)
+            .then((songs) => store.setSongs(songs))
+            .catch(() => {});
+          getPlaylists()
+            .then((pl) => store.setPlaylists(pl))
+            .catch(() => {});
+        });
+      } catch (err) {
+        console.warn('Failed to register scan event listeners:', err);
+      }
+    }
+
+    setupScanListeners();
+
+    return () => {
+      if (unlistenBatch) unlistenBatch();
+      if (unlistenProgress) unlistenProgress();
+      if (unlistenComplete) unlistenComplete();
+    };
   }, []);
 
   // Load library on mount

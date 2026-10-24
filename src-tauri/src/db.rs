@@ -16,6 +16,8 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
 
     conn.execute_batch("
         PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA busy_timeout = 5000;
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS music_dirs (
@@ -37,6 +39,7 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
             genre TEXT,
             has_cover INTEGER NOT NULL DEFAULT 0,
             has_lyrics INTEGER NOT NULL DEFAULT 0,
+            has_metadata INTEGER NOT NULL DEFAULT 1,
             file_size INTEGER,
             added_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         );
@@ -61,5 +64,50 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_songs_added_at ON songs(added_at);
     ")?;
 
+    // Migration for existing databases that were created before has_metadata was added
+    let has_col = conn
+        .prepare("SELECT has_metadata FROM songs LIMIT 1")
+        .is_ok();
+    if !has_col {
+        let _ = conn.execute(
+            "ALTER TABLE songs ADD COLUMN has_metadata INTEGER NOT NULL DEFAULT 1",
+            [],
+        );
+    }
+
+    // Safely create index after column is guaranteed to exist
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_songs_has_metadata ON songs(has_metadata)",
+        [],
+    );
+
+    // Retroactively update legacy pure audio tracks to has_metadata = 0
+    let _ = conn.execute(
+        "UPDATE songs SET has_metadata = 0 
+         WHERE (artist IS NULL OR trim(artist) = '' OR lower(trim(artist)) = 'unknown') 
+           AND (album IS NULL OR trim(album) = '' OR lower(trim(album)) = 'unknown') 
+           AND has_cover = 0 
+           AND has_lyrics = 0",
+        [],
+    );
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_initialize_db_and_has_metadata_column() {
+        let temp_dir = std::env::temp_dir().join(format!("test_music_db_{}.db", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        initialize_db(&temp_dir).expect("Database initialization should succeed");
+
+        let conn = Connection::open(&temp_dir).unwrap();
+        // Check that has_metadata exists in table
+        let mut stmt = conn.prepare("SELECT has_metadata FROM songs").unwrap();
+        let _ = stmt.query([]).unwrap();
+
+        let _ = std::fs::remove_file(temp_dir);
+    }
 }

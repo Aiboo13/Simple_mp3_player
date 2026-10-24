@@ -52,18 +52,19 @@ export default function MainPanel() {
     );
   }, [songs, searchQuery]);
 
-  // Load album art when currentSong changes
+  // Load album art when currentSong changes (bypasses pure audio tracks with no metadata/cover)
   useEffect(() => {
     if (!currentSong) {
       setCurrentAlbumArt(null);
       return;
     }
-    if (albumArtCache[currentSong.path]) {
-      setCurrentAlbumArt(albumArtCache[currentSong.path]);
+    // PRD 3.A.3: Pure Audio Bypass — Skip album art search if no cover or no metadata
+    if (currentSong.has_metadata === false || !currentSong.has_cover) {
+      setCurrentAlbumArt(null);
       return;
     }
-    if (!currentSong.has_cover) {
-      setCurrentAlbumArt(null);
+    if (albumArtCache[currentSong.path]) {
+      setCurrentAlbumArt(albumArtCache[currentSong.path]);
       return;
     }
     setLoadingArt(true);
@@ -74,11 +75,16 @@ export default function MainPanel() {
       })
       .catch(() => setCurrentAlbumArt(null))
       .finally(() => setLoadingArt(false));
-  }, [currentSong?.path]);
+  }, [currentSong?.path, currentSong?.has_cover, currentSong?.has_metadata]);
 
-  // Automatically fetch lyrics whenever currentSong changes (Permanent side-by-side)
+  // Automatically fetch lyrics when currentSong changes (bypasses pure audio tracks)
   useEffect(() => {
     if (!currentSong) {
+      setLyricsContent(null);
+      return;
+    }
+    // PRD 3.A.3: Pure Audio Bypass — Skip lyrics search if no lyrics or no metadata
+    if (currentSong.has_metadata === false || !currentSong.has_lyrics) {
       setLyricsContent(null);
       return;
     }
@@ -87,7 +93,7 @@ export default function MainPanel() {
         setLyricsContent(lyrics || null);
       })
       .catch(() => setLyricsContent(null));
-  }, [currentSong?.path]);
+  }, [currentSong?.path, currentSong?.has_lyrics, currentSong?.has_metadata]);
 
   function handlePlaySong(song, index) {
     if (isCurrentSong(song)) {

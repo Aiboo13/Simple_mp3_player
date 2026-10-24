@@ -57,7 +57,7 @@ export default function NavPanel() {
     setSongs, setPlaylists, playlists,
     searchQuery, setSearchQuery,
     sortBy, setSortBy, sortOrder, setSortOrder,
-    isScanning, setIsScanning, setScanProgress,
+    isScanning, setIsScanning, scanProgress, setScanProgress,
     showToast, replaceQueue,
     activePlaylistId,
     theme, setTheme, cycleTheme,
@@ -334,7 +334,7 @@ export default function NavPanel() {
         </div>
 
         {isScanning && (
-          <div className="nav-scan-progress mono">Scanning...</div>
+          <div className="nav-scan-progress mono">{scanProgress || 'Scanning...'}</div>
         )}
         <button
           id="scan-directory-btn"
