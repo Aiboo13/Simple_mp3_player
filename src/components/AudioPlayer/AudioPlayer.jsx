@@ -71,6 +71,8 @@ export default function AudioPlayer() {
     showToast,
     albumArtCache, setAlbumArt,
     seekRequest,
+    playNextSong,
+    playPrevSong,
   } = usePlayerStore();
 
   const currentSong = queue[currentIndex] ?? null;
@@ -312,46 +314,13 @@ export default function AudioPlayer() {
     setIsPlaying(false);
   }
 
-  const handleNext = useCallback(() => {
-    if (queue.length === 0) return;
-
-    if (repeatMode === 'one') {
-      const audio = audioRef.current;
-      if (audio) { audio.currentTime = 0; audio.play(); }
-      return;
-    }
-
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= queue.length) {
-      if (repeatMode === 'all') {
-        nextIndex = 0;
-      } else {
-        setIsPlaying(false);
-        return;
-      }
-    }
-
-    setCurrentIndex(nextIndex);
-    setIsPlaying(true);
-  }, [queue.length, currentIndex, repeatMode]);
+  const handleNext = useCallback((manual = false) => {
+    playNextSong(manual);
+  }, [playNextSong]);
 
   const handlePrev = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    // If more than 3 seconds in, restart
-    if (audio.currentTime > 3) {
-      audio.currentTime = 0;
-      return;
-    }
-
-    let prevIndex = currentIndex - 1;
-    if (prevIndex < 0) {
-      prevIndex = repeatMode === 'all' ? queue.length - 1 : 0;
-    }
-    setCurrentIndex(prevIndex);
-    setIsPlaying(true);
-  }, [currentIndex, queue.length, repeatMode]);
+    playPrevSong();
+  }, [playPrevSong]);
 
   // ── Seek control ─────────────────────────────────────────────
   function handleSeek(e) {
@@ -439,7 +408,7 @@ export default function AudioPlayer() {
           <button
             id="next-btn"
             className="btn btn-icon player-ctrl-btn"
-            onClick={handleNext}
+            onClick={() => handleNext(true)}
             disabled={!currentSong}
             aria-label="Next"
           >

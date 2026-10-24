@@ -31,7 +31,7 @@ const DRAG_ICON = (
 );
 
 function SortableSongItem({ song, index, isCurrent, isPlaying }) {
-  const { reorderQueue, removeFromQueue, setCurrentIndex, setIsPlaying } = usePlayerStore();
+  const { reorderQueue, removeFromQueue, setCurrentIndex, setIsPlaying, openContextMenu } = usePlayerStore();
 
   const {
     attributes,
@@ -73,6 +73,17 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
     removeFromQueue(index);
   }
 
+  function handleContextMenu(e) {
+    e.preventDefault();
+    openContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      song,
+      source: 'queue',
+      index,
+    });
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -82,6 +93,7 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
       role="listitem"
       onClick={handleSelectAndPlay}
       onDoubleClick={handleSelectAndPlay}
+      onContextMenu={handleContextMenu}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
     >
       <div

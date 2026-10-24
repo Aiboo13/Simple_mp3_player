@@ -19,12 +19,14 @@ const MusicNote = () => (
 export default function MainPanel() {
   const {
     songs, searchQuery, replaceQueue, currentIndex, addAllToQueue,
-    queue, isPlaying, setIsPlaying, showLyrics, setShowLyrics,
+    queue, isPlaying, setIsPlaying,
     lyricsContent, setLyricsContent, parsedLyrics,
     currentAlbumArt, setCurrentAlbumArt,
     albumArtCache, setAlbumArt, showToast, setCurrentIndex,
     activeView, activePlaylistId,
     currentTime, seekTo,
+    isLyricsFullscreen, toggleLyricsFullscreen,
+    openContextMenu,
   } = usePlayerStore();
 
   const [displaySongs, setDisplaySongs] = useState([]);
@@ -73,36 +75,18 @@ export default function MainPanel() {
       .finally(() => setLoadingArt(false));
   }, [currentSong?.path]);
 
-  // Auto-sync lyrics when currentSong changes if lyrics view is active
+  // Automatically fetch lyrics whenever currentSong changes (Permanent side-by-side)
   useEffect(() => {
     if (!currentSong) {
       setLyricsContent(null);
       return;
     }
-    if (showLyrics) {
-      getLyrics(currentSong.path)
-        .then((lyrics) => {
-          setLyricsContent(lyrics || null);
-        })
-        .catch(() => setLyricsContent(null));
-    }
-  }, [currentSong?.path, showLyrics]);
-
-  async function handleToggleLyrics(e) {
-    if (e) e.stopPropagation();
-    if (!currentSong) return;
-    if (showLyrics) {
-      setShowLyrics(false);
-      return;
-    }
-    try {
-      const lyrics = await getLyrics(currentSong.path);
-      setLyricsContent(lyrics || null);
-      setShowLyrics(true);
-    } catch (err) {
-      showToast('No lyrics found');
-    }
-  }
+    getLyrics(currentSong.path)
+      .then((lyrics) => {
+        setLyricsContent(lyrics || null);
+      })
+      .catch(() => setLyricsContent(null));
+  }, [currentSong?.path]);
 
   function handlePlaySong(song, index) {
     if (isCurrentSong(song)) {
@@ -140,61 +124,57 @@ export default function MainPanel() {
   }
 
   return (
-    <main className="main-panel" role="main">
-      {/* ── Now Playing / Album Art Area ── */}
-      <div
-        className={`now-playing-area ${showLyrics ? 'show-lyrics' : ''}`}
-        onClick={handleToggleLyrics}
-        role="button"
-        tabIndex={0}
-        aria-label={showLyrics ? 'Hide lyrics' : 'Show lyrics'}
-        onKeyDown={(e) => e.key === 'Enter' && handleToggleLyrics()}
-      >
-        {showLyrics ? (
-          <LyricsView
-            currentSong={currentSong}
-            parsedLyrics={parsedLyrics}
-            currentTime={currentTime}
-            seekTo={seekTo}
-            onClose={(e) => {
-              if (e) e.stopPropagation();
-              setShowLyrics(false);
-            }}
-          />
-        ) : currentSong ? (
-          /* ── Album Art View ── */
-          <div className="album-art-view">
-            <div className={`album-art-wrapper ${loadingArt ? 'loading' : ''}`}>
-              {currentAlbumArt ? (
-                <img
-                  className="album-art-img"
-                  src={currentAlbumArt}
-                  alt={`${currentSong.title} album art`}
-                  draggable={false}
-                />
-              ) : (
-                <div className="album-art-placeholder">
-                  <MusicNote />
+    <main className={`main-panel ${isLyricsFullscreen ? 'lyrics-fullscreen' : ''}`} role="main">
+      {/* ── Side-by-Side Now Playing Area ── */}
+      <div className={`now-playing-area ${isLyricsFullscreen ? 'fullscreen-mode' : ''}`}>
+        {currentSong ? (
+          <div className="now-playing-split">
+            {/* ── Left Side: Album Art & Track Details ── */}
+            <div className="now-playing-media">
+              <div className={`album-art-wrapper ${loadingArt ? 'loading' : ''}`}>
+                {currentAlbumArt ? (
+                  <img
+                    className="album-art-img"
+                    src={currentAlbumArt}
+                    alt={`${currentSong.title} album art`}
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="album-art-placeholder">
+                    <MusicNote />
+                  </div>
+                )}
+              </div>
+              <div className="now-playing-info">
+                <div className="now-playing-title text-truncate" title={currentSong.title}>
+                  {currentSong.title}
                 </div>
-              )}
-              <div className="album-art-overlay">
-                <span className="mono" style={{fontSize: '11px', letterSpacing: '0.1em'}}>
-                  {currentSong.has_lyrics ? '♪ CLICK FOR LYRICS' : '♪ NO LYRICS'}
-                </span>
+                <div className="now-playing-artist text-truncate" title={currentSong.artist}>
+                  {currentSong.artist || 'Unknown Artist'}
+                </div>
+                {currentSong.album && (
+                  <div className="now-playing-album text-truncate mono" title={currentSong.album}>
+                    {currentSong.album}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="now-playing-info">
-              <div className="now-playing-title text-truncate">{currentSong.title}</div>
-              <div className="now-playing-artist text-truncate">
-                {currentSong.artist || 'Unknown Artist'}
-              </div>
-              {currentSong.album && (
-                <div className="now-playing-album text-truncate mono">{currentSong.album}</div>
-              )}
-            </div>
+
+            {/* ── Vertical Divider Line ── */}
+            <div className="now-playing-divider" />
+
+            {/* ── Right Side: Synced Lyrics Stream (or completely blank if no lyrics) ── */}
+            <LyricsSidePanel
+              currentSong={currentSong}
+              parsedLyrics={parsedLyrics}
+              currentTime={currentTime}
+              seekTo={seekTo}
+              isFullscreen={isLyricsFullscreen}
+              onToggleFullscreen={toggleLyricsFullscreen}
+            />
           </div>
         ) : (
-          /* ── Empty State ── */
+          /* ── Empty State when nothing is playing ── */
           <div className="empty-player">
             <div className="empty-player-icon">
               <MusicNote />
@@ -207,67 +187,79 @@ export default function MainPanel() {
         )}
       </div>
 
-      {/* ── Song List ── */}
-      <div className="song-list-section">
-        <div className="song-list-header">
-          <div className="song-list-title">
-            <h1>
-              {searchQuery
-                ? `Search: "${searchQuery}"`
-                : activeView === 'playlist'
-                ? 'Playlist'
-                : 'Full Music'}
-            </h1>
-            <span className="badge mono">{displaySongs.length} tracks</span>
-          </div>
-          <div className="song-list-actions">
-            <button id="play-all-btn" className="btn btn-primary btn-sm" onClick={handlePlayAll} disabled={displaySongs.length === 0}>
-              ▶ Play All
-            </button>
-            <button id="queue-all-btn" className="btn btn-yellow btn-sm" onClick={handleAddAllToQueue} disabled={displaySongs.length === 0}>
-              + Queue All
-            </button>
-          </div>
-        </div>
-
-        {/* Column Headers */}
-        <div className="song-list-cols mono">
-          <span>#</span>
-          <span>Title</span>
-          <span>Artist</span>
-          <span>Album</span>
-          <span>Duration</span>
-        </div>
-
-        {/* Song Rows */}
-        <div className="song-list-rows" role="list">
-          {displaySongs.length === 0 ? (
-            <div className="song-list-empty">
-              <p>No songs found.</p>
-              <p className="mono" style={{fontSize: '12px', color: '#aaa'}}>
-                {searchQuery ? 'Try a different search term.' : 'Use "Open Folder" to add your music.'}
-              </p>
+      {/* ── Song List Section (Hidden when lyrics are in fullscreen mode) ── */}
+      {!isLyricsFullscreen && (
+        <div className="song-list-section">
+          <div className="song-list-header">
+            <div className="song-list-title">
+              <h1>
+                {searchQuery
+                  ? `Search: "${searchQuery}"`
+                  : activeView === 'playlist'
+                  ? 'Playlist'
+                  : 'Full Music'}
+              </h1>
+              <span className="badge mono">{displaySongs.length} tracks</span>
             </div>
-          ) : (
-            displaySongs.map((song, index) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                index={index}
-                isCurrent={isCurrentSong(song)}
-                isPlaying={isPlaying && isCurrentSong(song)}
-                onPlay={() => handlePlaySong(song, index)}
-                onTogglePlay={() => handleTogglePlaySong(song, index)}
-              />
-            ))
-          )}
+            <div className="song-list-actions">
+              <button id="play-all-btn" className="btn btn-primary btn-sm" onClick={handlePlayAll} disabled={displaySongs.length === 0}>
+                ▶ Play All
+              </button>
+              <button id="queue-all-btn" className="btn btn-yellow btn-sm" onClick={handleAddAllToQueue} disabled={displaySongs.length === 0}>
+                + Queue All
+              </button>
+            </div>
+          </div>
+
+          {/* Column Headers */}
+          <div className="song-list-cols mono">
+            <span>#</span>
+            <span>Title</span>
+            <span>Artist</span>
+            <span>Album</span>
+            <span>Duration</span>
+          </div>
+
+          {/* Song Rows */}
+          <div className="song-list-rows" role="list">
+            {displaySongs.length === 0 ? (
+              <div className="song-list-empty">
+                <p>No songs found.</p>
+                <p className="mono" style={{fontSize: '12px', color: '#aaa'}}>
+                  {searchQuery ? 'Try a different search term.' : 'Use "Open Folder" to add your music.'}
+                </p>
+              </div>
+            ) : (
+              displaySongs.map((song, index) => (
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  index={index}
+                  isCurrent={isCurrentSong(song)}
+                  isPlaying={isPlaying && isCurrentSong(song)}
+                  onPlay={() => handlePlaySong(song, index)}
+                  onTogglePlay={() => handleTogglePlaySong(song, index)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    openContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      song,
+                      source: 'main',
+                      index,
+                    });
+                  }}
+                />
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
 
-function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay }) {
+function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay, onContextMenu }) {
   const { addToQueue, showToast } = usePlayerStore();
 
   function handleAddToQueue(e) {
@@ -287,6 +279,7 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay }) {
       role="listitem"
       onClick={handleRowClick}
       onDoubleClick={handleRowClick}
+      onContextMenu={onContextMenu}
       tabIndex={0}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPlay()}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
@@ -336,17 +329,19 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay }) {
   );
 }
 
-function LyricsView({ currentSong, parsedLyrics, currentTime, seekTo, onClose }) {
+function LyricsSidePanel({ currentSong, parsedLyrics, currentTime, seekTo, isFullscreen, onToggleFullscreen }) {
   const activeLineRef = useRef(null);
   const [userScrolled, setUserScrolled] = useState(false);
   const scrollTimeoutRef = useRef(null);
 
+  const hasLyrics = Boolean(parsedLyrics && parsedLyrics.length > 0);
+
   const activeIndex = useMemo(
-    () => getActiveLyricIndex(parsedLyrics, currentTime),
-    [parsedLyrics, currentTime]
+    () => (hasLyrics ? getActiveLyricIndex(parsedLyrics, currentTime) : -1),
+    [parsedLyrics, currentTime, hasLyrics]
   );
 
-  const isSynced = parsedLyrics.length > 0 && parsedLyrics.some((l) => l.time >= 0);
+  const isSynced = hasLyrics && parsedLyrics.some((l) => l.time >= 0);
 
   // Auto-scroll to active line
   useEffect(() => {
@@ -380,26 +375,33 @@ function LyricsView({ currentSong, parsedLyrics, currentTime, seekTo, onClose })
   };
 
   return (
-    <div className="lyrics-view" onClick={(e) => e.stopPropagation()}>
-      <div className="lyrics-header">
-        <span className={`badge ${isSynced ? 'badge-red' : 'badge-blue'}`}>
-          {isSynced ? 'SYNCED' : 'LYRICS'}
-        </span>
-        <span className="lyrics-song-name text-truncate">
-          {currentSong?.title} — {currentSong?.artist || 'Unknown'}
-        </span>
+    <div className="now-playing-lyrics" onClick={(e) => e.stopPropagation()}>
+      {/* ── Toolbar: Status & Fullscreen Toggle ── */}
+      <div className="lyrics-toolbar">
+        {hasLyrics ? (
+          <div className="lyrics-toolbar-left">
+            <span className={`badge ${isSynced ? 'badge-red' : 'badge-blue'}`}>
+              {isSynced ? 'SYNCED' : 'LYRICS'}
+            </span>
+          </div>
+        ) : (
+          <div className="lyrics-toolbar-left" />
+        )}
+
         <button
-          className="lyrics-close-btn"
-          onClick={onClose}
-          aria-label="Close lyrics"
-          title="Close lyrics"
+          id="fullscreen-lyrics-btn"
+          className="btn btn-sm lyrics-fs-btn"
+          onClick={onToggleFullscreen}
+          title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Mode Layar Penuh Lirik'}
+          aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Mode Layar Penuh Lirik'}
         >
-          ✕ Close
+          {isFullscreen ? '✕ Exit' : '⛶ Fullscreen'}
         </button>
       </div>
 
-      <div className="lyrics-content" onScroll={handleScroll}>
-        {parsedLyrics && parsedLyrics.length > 0 ? (
+      {/* ── Lyrics Content Area ── */}
+      {hasLyrics ? (
+        <div className="lyrics-content" onScroll={handleScroll}>
           <div className="lyrics-lines">
             {parsedLyrics.map((line, idx) => {
               const isActive = isSynced && idx === activeIndex;
@@ -418,15 +420,11 @@ function LyricsView({ currentSong, parsedLyrics, currentTime, seekTo, onClose })
               );
             })}
           </div>
-        ) : (
-          <div className="lyrics-empty">
-            <span>No lyrics found for this file.</span>
-            <span className="mono" style={{ fontSize: '12px', color: '#aaa' }}>
-              Add a .lrc file or embed USLT/SYLT tags to display synced lyrics.
-            </span>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        /* CRITICAL REQUIREMENT A: Edge Case — completely blank if no lyrics found */
+        <div className="lyrics-empty-blank" aria-hidden="true" />
+      )}
     </div>
   );
 }

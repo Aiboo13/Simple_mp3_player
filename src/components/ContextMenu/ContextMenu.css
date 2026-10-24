@@ -1,0 +1,200 @@
+/* ============================================================
+   CONTEXT MENU — NEO-BRUTALISM DESIGN
+   ============================================================ */
+
+.context-menu {
+  position: fixed;
+  z-index: 10000;
+  width: 210px;
+  background: var(--surface-card);
+  border: var(--border-thick);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: context-menu-pop 0.12s cubic-bezier(0, 0, 0.2, 1);
+  user-select: none;
+}
+
+@keyframes context-menu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-header {
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 2px solid var(--clr-black);
+  margin-bottom: 3px;
+}
+
+.context-menu-song-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--clr-black);
+  letter-spacing: -0.01em;
+}
+
+.context-menu-song-artist {
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 0.04em;
+}
+
+.context-menu-divider {
+  display: none;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  border: 2px solid transparent;
+  color: var(--clr-black);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0;
+  transition: all var(--transition-fast);
+}
+
+.context-menu-item:hover {
+  background: var(--surface-panel);
+  border-color: var(--clr-black);
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 var(--clr-black);
+}
+
+.context-menu-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.context-menu-label {
+  flex: 1;
+}
+
+/* Featured: Play Next item */
+.context-menu-play-next {
+  background: rgba(245, 200, 0, 0.15);
+  border-color: var(--clr-black);
+}
+
+.context-menu-play-next:hover {
+  background: var(--clr-yellow);
+  color: var(--clr-black);
+  box-shadow: 3px 3px 0 var(--clr-black);
+}
+
+.context-menu-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+.context-menu-item-danger:hover {
+  background: var(--clr-red);
+  color: var(--clr-white);
+  border-color: var(--clr-black);
+}
+
+/* ── Theme 2: Black & White Theme Overrides ── */
+[data-theme="bw"] .context-menu {
+  background: #c8c8c8 !important;
+  border-color: #000000 !important;
+  box-shadow: 6px 6px 0 #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-header {
+  border-bottom-color: #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-song-title {
+  color: #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-song-artist {
+  color: #444444 !important;
+}
+
+[data-theme="bw"] .context-menu-item {
+  color: #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-item:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-color: #000000 !important;
+  box-shadow: 3px 3px 0 #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-play-next {
+  background: #b0b0b0 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .context-menu-play-next:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* ── Theme 3: Dark Web Overrides ── */
+[data-theme="darkweb"] .context-menu {
+  background: #070e0a !important;
+  border: 2px solid #00ff66 !important;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4) !important;
+}
+
+[data-theme="darkweb"] .context-menu-header {
+  border-bottom: 2px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-menu-song-title {
+  color: #00ff66 !important;
+  text-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
+}
+
+[data-theme="darkweb"] .context-menu-song-artist {
+  color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .context-menu-item {
+  color: #a4f7c7 !important;
+}
+
+[data-theme="darkweb"] .context-menu-item:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.6) !important;
+}
+
+[data-theme="darkweb"] .context-menu-play-next {
+  background: #0c1811 !important;
+  border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-menu-play-next:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+}
+
+[data-theme="darkweb"] .context-menu-badge {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+}

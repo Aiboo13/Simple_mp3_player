@@ -6,37 +6,56 @@
   background: var(--surface-bg);
 }
 
-/* ── Now Playing Area ── */
+/* ── Now Playing Area (Side-by-Side: Album Art + Lyrics) ── */
 .now-playing-area {
   flex-shrink: 0;
-  height: 260px;
+  height: 270px;
   border-bottom: var(--border-thick);
-  cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: background var(--transition-fast);
-  user-select: none;
+  background: var(--surface-bg);
+  transition: all var(--transition-fast);
 }
-.now-playing-area:hover { background: var(--surface-panel); }
 
-/* Album Art View */
-.album-art-view {
+/* Fullscreen Mode for Lyrics & Cover */
+.now-playing-area.fullscreen-mode {
+  height: 100% !important;
+  flex: 1 !important;
+  border-bottom: none !important;
+}
+
+/* ── Split Container (Left: Album Art & Info, Right: Lyrics) ── */
+.now-playing-split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Left Side: Media Details */
+.now-playing-media {
   display: flex;
   align-items: center;
-  gap: var(--sp-6);
+  gap: var(--sp-4);
   height: 100%;
-  padding: var(--sp-5) var(--sp-6);
+  padding: var(--sp-4) var(--sp-5);
+  width: 320px;
+  min-width: 280px;
+  flex-shrink: 0;
+  background: var(--surface-bg);
+  transition: all var(--transition-normal);
 }
 
 .album-art-wrapper {
   position: relative;
-  width: 192px;
-  height: 192px;
+  width: 150px;
+  height: 150px;
   flex-shrink: 0;
   border: var(--border-thick);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   background: var(--surface-dark);
+  transition: all var(--transition-normal);
 }
 .album-art-wrapper.loading { opacity: 0.6; }
 
@@ -55,47 +74,236 @@
   background: var(--surface-dark-2);
   color: #555;
 }
-.album-art-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: var(--sp-2) var(--sp-3);
-  background: rgba(0,0,0,0.75);
-  color: var(--clr-yellow);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-align: center;
-  transform: translateY(100%);
-  transition: transform var(--transition-normal);
-}
-.album-art-wrapper:hover .album-art-overlay { transform: translateY(0); }
 
 .now-playing-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: 4px;
 }
 .now-playing-title {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: -0.02em;
 }
 .now-playing-artist {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--clr-red);
   font-weight: 600;
 }
 .now-playing-album {
-  font-size: 12px;
+  font-size: 11px;
   color: #888;
   letter-spacing: 0.05em;
 }
 
-/* Empty State */
+/* Fullscreen Mode Adjustments for Media (Left Pane) */
+.fullscreen-mode .now-playing-media {
+  width: 440px;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: var(--sp-5);
+  padding: var(--sp-8) var(--sp-6);
+  border-right: var(--border-thick);
+}
+
+.fullscreen-mode .album-art-wrapper {
+  width: 250px;
+  height: 250px;
+  box-shadow: var(--shadow-xl);
+}
+
+.fullscreen-mode .now-playing-info {
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.fullscreen-mode .now-playing-title {
+  font-size: 26px;
+}
+
+.fullscreen-mode .now-playing-artist {
+  font-size: 18px;
+}
+
+.fullscreen-mode .now-playing-album {
+  font-size: 13px;
+}
+
+/* ── Divider between Album & Lyrics ── */
+.now-playing-divider {
+  width: 0;
+  border-right: var(--border-thick);
+  flex-shrink: 0;
+}
+
+/* ── Right Side: Lyrics Container ── */
+.now-playing-lyrics {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--clr-black);
+  color: var(--clr-white);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Lyrics Toolbar (Header) */
+.lyrics-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 2px solid #222;
+  background: rgba(10, 10, 10, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 2;
+  flex-shrink: 0;
+  height: 38px;
+}
+
+.lyrics-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.lyrics-fs-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #ccc;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 #000;
+  transition: all var(--transition-fast);
+}
+
+.lyrics-fs-btn:hover {
+  background: var(--clr-yellow);
+  color: var(--clr-black);
+  border-color: var(--clr-black);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #000;
+}
+
+.fullscreen-mode .lyrics-fs-btn {
+  background: var(--clr-red);
+  color: white;
+  border-color: white;
+  font-weight: 700;
+}
+
+.fullscreen-mode .lyrics-fs-btn:hover {
+  background: white;
+  color: black;
+  border-color: black;
+}
+
+/* ── Empty Blank Lyrics State (CRITICAL PRD REQ: Completely blank, NO text!) ── */
+.lyrics-empty-blank {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* ── Scrolling Lyrics Content ── */
+.lyrics-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+  /* Top and bottom gradient fade mask for smooth lyrics entry/exit */
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+}
+
+.lyrics-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px var(--sp-4);
+  gap: var(--sp-3);
+  min-height: 100%;
+}
+
+.fullscreen-mode .lyrics-lines {
+  padding: 120px var(--sp-8);
+  gap: var(--sp-5);
+}
+
+.lyrics-line {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  text-align: center;
+  max-width: 90%;
+  border-radius: 4px;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              font-size 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              text-shadow 0.25s ease;
+  user-select: none;
+}
+
+.fullscreen-mode .lyrics-line {
+  font-size: 18px;
+}
+
+.lyrics-line.clickable {
+  cursor: pointer;
+}
+
+.lyrics-line:hover {
+  color: #ccc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lyrics-line.past {
+  color: #444;
+}
+
+.lyrics-line.active {
+  color: var(--clr-yellow);
+  font-size: 20px;
+  font-weight: 800;
+  transform: scale(1.06);
+  text-shadow: 0 0 16px rgba(255, 230, 0, 0.45);
+  background: rgba(255, 230, 0, 0.08);
+  border: 1px solid rgba(255, 230, 0, 0.25);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.7);
+}
+
+.fullscreen-mode .lyrics-line.active {
+  font-size: 26px;
+  transform: scale(1.08);
+}
+
+/* Theme support for active lyrics line */
+[data-theme="bw"] .lyrics-line.active {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+
+[data-theme="darkweb"] .lyrics-line.active {
+  color: #00ff66;
+  text-shadow: 0 0 16px rgba(0, 255, 102, 0.7);
+  background: rgba(0, 255, 102, 0.1);
+  border-color: #00ff66;
+}
+
+/* ── Empty Player State (when no song is chosen) ── */
 .empty-player {
   height: 100%;
   display: flex;
@@ -124,140 +332,6 @@
   font-size: 14px;
 }
 .empty-player-text strong { font-size: 18px; color: var(--clr-black); }
-
-/* Lyrics View */
-.lyrics-view {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--clr-black);
-  color: var(--clr-white);
-  position: relative;
-  overflow: hidden;
-}
-
-.lyrics-header {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-5);
-  border-bottom: 2px solid #222;
-  background: rgba(10, 10, 10, 0.95);
-  backdrop-filter: blur(8px);
-  z-index: 2;
-  flex-shrink: 0;
-}
-
-.lyrics-song-name {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.lyrics-close-btn {
-  background: transparent;
-  border: 1px solid #444;
-  color: #aaa;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 3px 8px;
-  cursor: pointer;
-  box-shadow: 2px 2px 0 #000;
-  transition: all var(--transition-fast);
-}
-.lyrics-close-btn:hover {
-  background: var(--clr-red);
-  border-color: var(--clr-red);
-  color: white;
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 #000;
-}
-
-.lyrics-content {
-  flex: 1;
-  overflow-y: auto;
-  position: relative;
-  scrollbar-width: thin;
-  scrollbar-color: #333 transparent;
-  /* Top and bottom gradient fade mask for smooth lyrics entry/exit */
-  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-}
-
-.lyrics-lines {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 70px var(--sp-6);
-  gap: var(--sp-3);
-  min-height: 100%;
-}
-
-.lyrics-line {
-  padding: var(--sp-2) var(--sp-4);
-  font-size: 15px;
-  font-weight: 600;
-  color: #666;
-  text-align: center;
-  max-width: 90%;
-  border-radius: 4px;
-  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              font-size 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              text-shadow 0.25s ease;
-  user-select: none;
-}
-
-.lyrics-line.clickable {
-  cursor: pointer;
-}
-
-.lyrics-line:hover {
-  color: #ccc;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.lyrics-line.past {
-  color: #444;
-}
-
-.lyrics-line.active {
-  color: var(--clr-yellow);
-  font-size: 20px;
-  font-weight: 800;
-  transform: scale(1.06);
-  text-shadow: 0 0 16px rgba(255, 230, 0, 0.45);
-  background: rgba(255, 230, 0, 0.08);
-  border: 1px solid rgba(255, 230, 0, 0.25);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.7);
-}
-
-/* Theme support for active lyrics line */
-[data-theme="bw"] .lyrics-line.active {
-  color: #ffffff;
-  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #fff;
-}
-
-[data-theme="darkweb"] .lyrics-line.active {
-  color: #00ff66;
-  text-shadow: 0 0 16px rgba(0, 255, 102, 0.7);
-  background: rgba(0, 255, 102, 0.1);
-  border-color: #00ff66;
-}
-
-.lyrics-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: var(--sp-2);
-  color: #666;
-  font-size: 14px;
-}
 
 /* ── Song List Section ── */
 .song-list-section {

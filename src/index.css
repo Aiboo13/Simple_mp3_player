@@ -409,6 +409,57 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   box-shadow: 2px 2px 0 #000000 !important;
 }
 
+[data-theme="bw"] .now-playing-area {
+  background: #b0b0b0 !important;
+  border-bottom: 3px solid #000000 !important;
+}
+
+[data-theme="bw"] .now-playing-media {
+  background: #b0b0b0 !important;
+}
+
+[data-theme="bw"] .now-playing-divider {
+  border-right: 3px solid #000000 !important;
+}
+
+[data-theme="bw"] .now-playing-lyrics {
+  background: #141414 !important;
+  color: #dcdcdc !important;
+}
+
+[data-theme="bw"] .lyrics-toolbar {
+  background: #1b1b1b !important;
+  border-bottom: 2px solid #333333 !important;
+}
+
+[data-theme="bw"] .lyrics-fs-btn {
+  background: #252525 !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+[data-theme="bw"] .lyrics-fs-btn:hover {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .lyrics-line {
+  color: #777777 !important;
+}
+
+[data-theme="bw"] .lyrics-line.past {
+  color: #444444 !important;
+}
+
+[data-theme="bw"] .lyrics-line.active {
+  color: #ffffff !important;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.7) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: #ffffff !important;
+}
+
 
 /* ── 3. Mode Dark Web (Terminal Hacker / Cyberpunk Matrix) ── */
 [data-theme="darkweb"] {
@@ -522,6 +573,57 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
 
 [data-theme="darkweb"] .now-playing-artist {
   color: #79c79b !important;
+}
+
+[data-theme="darkweb"] .now-playing-media {
+  background: #050b07 !important;
+}
+
+[data-theme="darkweb"] .now-playing-divider {
+  border-right: 2px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .now-playing-lyrics {
+  background: #020403 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .lyrics-toolbar {
+  background: #070e0a !important;
+  border-bottom: 2px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .lyrics-fs-btn {
+  background: #070e0a !important;
+  border-color: #00ff66 !important;
+  color: #00ff66 !important;
+  box-shadow: 0 0 6px rgba(0, 255, 102, 0.3) !important;
+}
+
+[data-theme="darkweb"] .lyrics-fs-btn:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  box-shadow: 0 0 12px #00ff66 !important;
+}
+
+[data-theme="darkweb"] .lyrics-line {
+  color: #27623e !important;
+}
+
+[data-theme="darkweb"] .lyrics-line:hover {
+  color: #00ff66 !important;
+  background: rgba(0, 255, 102, 0.08) !important;
+}
+
+[data-theme="darkweb"] .lyrics-line.past {
+  color: #163e26 !important;
+}
+
+[data-theme="darkweb"] .lyrics-line.active {
+  color: #00ff66 !important;
+  text-shadow: 0 0 16px rgba(0, 255, 102, 0.8) !important;
+  background: rgba(0, 255, 102, 0.15) !important;
+  border-color: #00ff66 !important;
 }
 
 [data-theme="darkweb"] .song-list-cols {

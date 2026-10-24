@@ -59,6 +59,63 @@ const usePlayerStore = create((set, get) => ({
           : state.originalQueue,
     })),
 
+  // Insert a song right next in the queue (2nd in active queue below current song)
+  insertPlayNext: (song) => {
+    const { queue, currentIndex } = get();
+
+    // If queue is empty or nothing is playing, play immediately
+    if (queue.length === 0 || currentIndex === -1) {
+      set({
+        queue: [song],
+        currentIndex: 0,
+        isPlaying: true,
+      });
+      get().showToast(`✓ Playing: ${song.title}`);
+      return;
+    }
+
+    // If song is currently playing
+    if (queue[currentIndex]?.id === song.id) {
+      get().showToast(`"${song.title}" is already playing`);
+      return;
+    }
+
+    // If already next in queue
+    if (currentIndex + 1 < queue.length && queue[currentIndex + 1]?.id === song.id) {
+      get().showToast(`"${song.title}" is already next in queue`);
+      return;
+    }
+
+    const existingIndex = queue.findIndex((s) => s.id === song.id);
+    const newQueue = [...queue];
+
+    if (existingIndex !== -1) {
+      // Song is already somewhere in queue -> reposition it right next
+      const [item] = newQueue.splice(existingIndex, 1);
+      if (existingIndex < currentIndex) {
+        // Since an item before currentIndex was removed, currentIndex shifts down by 1
+        const newCurrentIndex = currentIndex - 1;
+        newQueue.splice(newCurrentIndex + 1, 0, item);
+        set({ queue: newQueue, currentIndex: newCurrentIndex });
+      } else {
+        newQueue.splice(currentIndex + 1, 0, item);
+        set({ queue: newQueue });
+      }
+    } else {
+      // Song not in queue -> insert at currentIndex + 1
+      newQueue.splice(currentIndex + 1, 0, song);
+      set({
+        queue: newQueue,
+        originalQueue:
+          get().originalQueue.length > 0
+            ? [...get().originalQueue, song]
+            : get().originalQueue,
+      });
+    }
+
+    get().showToast(`✓ Play next: ${song.title}`);
+  },
+
   replaceQueue: (songs, startIndex = 0) => {
     const { isShuffled } = get();
     if (isShuffled && songs.length > 1) {
@@ -217,9 +274,58 @@ const usePlayerStore = create((set, get) => ({
       albumArtCache: { ...state.albumArtCache, [path]: data },
     })),
 
+  // ── Navigation & Skip Actions ───────────────────────────
+  playNextSong: (manual = false) => {
+    const { queue, currentIndex, repeatMode } = get();
+    if (queue.length === 0) return;
+
+    if (!manual && repeatMode === 'one') {
+      set({ seekRequest: 0, isPlaying: true });
+      return;
+    }
+
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= queue.length) {
+      if (repeatMode === 'all' || manual) {
+        nextIndex = 0;
+      } else {
+        set({ isPlaying: false });
+        return;
+      }
+    }
+
+    set({ currentIndex: nextIndex, isPlaying: true });
+  },
+
+  playPrevSong: () => {
+    const { queue, currentIndex, repeatMode, currentTime } = get();
+    if (queue.length === 0) return;
+
+    // If more than 3 seconds in, restart track
+    if (currentTime > 3) {
+      set({ seekRequest: 0, isPlaying: true });
+      return;
+    }
+
+    let prevIndex = currentIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = repeatMode === 'all' ? queue.length - 1 : 0;
+    }
+
+    set({ currentIndex: prevIndex, isPlaying: true });
+  },
+
   // ── UI State ──────────────────────────────────────────────
   showLyrics: false,
   setShowLyrics: (showLyrics) => set({ showLyrics }),
+
+  isLyricsFullscreen: false,
+  setIsLyricsFullscreen: (isLyricsFullscreen) => set({ isLyricsFullscreen }),
+  toggleLyricsFullscreen: () => set((state) => ({ isLyricsFullscreen: !state.isLyricsFullscreen })),
+
+  contextMenu: null,
+  openContextMenu: (contextMenu) => set({ contextMenu }),
+  closeContextMenu: () => set({ contextMenu: null }),
 
   lyricsContent: null,
   parsedLyrics: [],

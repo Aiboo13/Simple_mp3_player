@@ -22,6 +22,15 @@
   flex-shrink: 0;
 }
 
+/* ── Fullscreen Lyrics Mode ── */
+.app-shell.lyrics-fullscreen .app-panels {
+  grid-template-columns: 1fr;
+}
+.app-shell.lyrics-fullscreen .nav-panel,
+.app-shell.lyrics-fullscreen .queue-panel {
+  display: none !important;
+}
+
 /* ── Toast Variants ── */
 .toast-error {
   background: var(--clr-red);
