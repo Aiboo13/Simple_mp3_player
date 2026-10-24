@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import usePlayerStore from '../../store/usePlayerStore';
-import { formatDuration, readAudioFile } from '../../lib/api';
+import { formatDuration, readAudioFile, getAlbumArt } from '../../lib/api';
 import './AudioPlayer.css';
 
 // ── SVG Icons ────────────────────────────────────────────────
@@ -69,19 +69,115 @@ export default function AudioPlayer() {
     isShuffled, setIsShuffled,
     repeatMode, cycleRepeat,
     showToast,
+    albumArtCache, setAlbumArt,
   } = usePlayerStore();
 
   const currentSong = queue[currentIndex] ?? null;
-  const blobUrlRef = useRef(null);
 
-  // Clean up blob URL on unmount
+  // In-memory Blob URL cache (max 4 tracks) and in-flight promises
+  const blobCacheRef = useRef(new Map()); // Map<path, blobUrl>
+  const pendingLoadsRef = useRef(new Map()); // Map<path, Promise<string>>
+
+  // Helper to load or fetch from cache
+  const getOrLoadBlob = useCallback(async (path) => {
+    if (!path) return null;
+    if (blobCacheRef.current.has(path)) {
+      return blobCacheRef.current.get(path);
+    }
+    if (pendingLoadsRef.current.has(path)) {
+      return pendingLoadsRef.current.get(path);
+    }
+
+    const loadPromise = (async () => {
+      try {
+        const blobUrl = await readAudioFile(path);
+        blobCacheRef.current.set(path, blobUrl);
+
+        // Keep cache bounded to max 4 tracks (prev, current, next, etc.)
+        while (blobCacheRef.current.size > 4) {
+          let keyToEvict = null;
+          for (const k of blobCacheRef.current.keys()) {
+            if (k !== currentSong?.path) {
+              keyToEvict = k;
+              break;
+            }
+          }
+          if (!keyToEvict) break;
+          const urlToRevoke = blobCacheRef.current.get(keyToEvict);
+          if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+          blobCacheRef.current.delete(keyToEvict);
+        }
+
+        return blobUrl;
+      } finally {
+        pendingLoadsRef.current.delete(path);
+      }
+    })();
+
+    pendingLoadsRef.current.set(path, loadPromise);
+    return loadPromise;
+  }, [currentSong?.path]);
+
+  // Clean up all cached blob URLs on unmount
   useEffect(() => {
     return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-      }
+      blobCacheRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      blobCacheRef.current.clear();
     };
   }, []);
+
+  // Evict cache entries if queue changes and they are no longer in queue
+  useEffect(() => {
+    const queuePaths = new Set(queue.map((s) => s.path));
+    if (currentSong?.path) queuePaths.add(currentSong.path);
+    for (const [path, url] of blobCacheRef.current.entries()) {
+      if (!queuePaths.has(path)) {
+        URL.revokeObjectURL(url);
+        blobCacheRef.current.delete(path);
+      }
+    }
+  }, [queue, currentSong?.path]);
+
+  // Helper to determine the next song in queue
+  const getNextSong = useCallback(() => {
+    if (queue.length === 0) return null;
+    if (repeatMode === 'one') {
+      return queue[currentIndex] ?? null;
+    }
+    let nextIdx = currentIndex + 1;
+    if (nextIdx >= queue.length) {
+      if (repeatMode === 'all') nextIdx = 0;
+      else return null;
+    }
+    return queue[nextIdx] ?? null;
+  }, [queue, currentIndex, repeatMode]);
+
+  // ── Pre-load next song in background ─────────────────────────
+  useEffect(() => {
+    const nextSong = getNextSong();
+    if (!nextSong || !nextSong.path || nextSong.path === currentSong?.path) return;
+
+    // 600ms delay so current song gets top priority when starting
+    const timer = setTimeout(() => {
+      console.log('[AudioPlayer] ⚡ Pre-loading next track in background:', nextSong.title);
+      getOrLoadBlob(nextSong.path).catch((err) => {
+        console.warn('[AudioPlayer] Background pre-load error:', err);
+      });
+
+      // Also pre-fetch album art if not yet cached
+      if (nextSong.has_cover && !albumArtCache[nextSong.path]) {
+        getAlbumArt(nextSong.path)
+          .then((art) => {
+            if (art) setAlbumArt(nextSong.path, art);
+          })
+          .catch(() => {});
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [currentSong?.path, getNextSong, getOrLoadBlob, albumArtCache, setAlbumArt]);
 
   // ── Audio source management ──────────────────────────────────
   useEffect(() => {
@@ -90,22 +186,17 @@ export default function AudioPlayer() {
 
     let isCancelled = false;
 
-    // Revoke previous blob URL if any
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
-
     const loadAndPlay = async () => {
       try {
-        console.log('[AudioPlayer] Loading via Blob URL for:', currentSong.title, currentSong.path);
-        const blobUrl = await readAudioFile(currentSong.path);
-        if (isCancelled) {
-          URL.revokeObjectURL(blobUrl);
-          return;
-        }
+        const isCached = blobCacheRef.current.has(currentSong.path);
+        console.log(
+          `[AudioPlayer] ${isCached ? '⚡ Instant cache hit' : 'Loading'} for:`,
+          currentSong.title
+        );
 
-        blobUrlRef.current = blobUrl;
+        const blobUrl = await getOrLoadBlob(currentSong.path);
+        if (isCancelled || !blobUrl) return;
+
         audio.src = blobUrl;
         audio.load();
 
@@ -132,7 +223,7 @@ export default function AudioPlayer() {
     return () => {
       isCancelled = true;
     };
-  }, [currentSong?.path]);
+  }, [currentSong?.path, getOrLoadBlob]);
 
   // ── Sync play/pause when user toggles play button ─────────────
   useEffect(() => {

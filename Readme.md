@@ -106,6 +106,7 @@ Aplikasi ini menggunakan pola arsitektur desktop modern:
 
 * **[`src/components/AudioPlayer/AudioPlayer.jsx`](src/components/AudioPlayer/AudioPlayer.jsx)**
   * Mengelola elemen HTML5 `<audio>` dan audio playback logic.
+  * **Fitur Caching & Pre-loading Pintar**: Otomatis memuat track lagu berikutnya beserta cover albumnya di latar belakang (*background pre-load*) ke dalam in-memory bounded cache, sehingga penekanan tombol **Next** berlangsung instan tanpa jeda I/O.
   * Fitur: Play/Pause, Seekbar interaktif dengan waktu real-time, pengatur volume/mute, tombol Shuffle, tombol Repeat mode, tombol Next/Previous, dan tombol toggle penampil Lirik lagu.
 
 * **[`src/components/NavPanel/NavPanel.jsx`](src/components/NavPanel/NavPanel.jsx)**
