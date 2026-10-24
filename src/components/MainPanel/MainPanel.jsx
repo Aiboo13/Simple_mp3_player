@@ -87,6 +87,15 @@ export default function MainPanel() {
 
   function handlePlaySong(song, index) {
     if (isCurrentSong(song)) {
+      setIsPlaying(true);
+    } else {
+      replaceQueue(displaySongs, index);
+      setIsPlaying(true);
+    }
+  }
+
+  function handleTogglePlaySong(song, index) {
+    if (isCurrentSong(song)) {
       setIsPlaying(!isPlaying);
     } else {
       replaceQueue(displaySongs, index);
@@ -239,6 +248,7 @@ export default function MainPanel() {
                 isCurrent={isCurrentSong(song)}
                 isPlaying={isPlaying && isCurrentSong(song)}
                 onPlay={() => handlePlaySong(song, index)}
+                onTogglePlay={() => handleTogglePlaySong(song, index)}
               />
             ))
           )}
@@ -248,7 +258,7 @@ export default function MainPanel() {
   );
 }
 
-function SongRow({ song, index, isCurrent, isPlaying, onPlay }) {
+function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay }) {
   const { addToQueue, showToast } = usePlayerStore();
 
   function handleAddToQueue(e) {
@@ -267,6 +277,7 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay }) {
       className={`song-row ${isCurrent ? 'current' : ''}`}
       role="listitem"
       onClick={handleRowClick}
+      onDoubleClick={handleRowClick}
       tabIndex={0}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPlay()}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
@@ -304,7 +315,7 @@ function SongRow({ song, index, isCurrent, isPlaying, onPlay }) {
           className="btn btn-icon btn-sm song-play-btn btn-primary"
           onClick={(e) => {
             e.stopPropagation();
-            onPlay();
+            onTogglePlay();
           }}
           aria-label={isCurrent && isPlaying ? `Pause ${song.title}` : `Play ${song.title}`}
           title={isCurrent && isPlaying ? "Pause" : "Play"}

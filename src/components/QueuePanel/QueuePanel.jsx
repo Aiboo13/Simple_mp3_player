@@ -48,7 +48,17 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
     opacity: isDragging ? 0.3 : 1,
   };
 
-  function handlePlay(e) {
+  function handleSelectAndPlay(e) {
+    if (e) e.stopPropagation();
+    if (isCurrent) {
+      setIsPlaying(true);
+    } else {
+      setCurrentIndex(index);
+      setIsPlaying(true);
+    }
+  }
+
+  function handleTogglePlay(e) {
     e.stopPropagation();
     if (isCurrent) {
       setIsPlaying(!isPlaying);
@@ -70,6 +80,8 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
       id={`queue-item-${song.id}`}
       className={`queue-item ${isCurrent ? 'current' : ''} ${isDragging ? 'dragging' : ''}`}
       role="listitem"
+      onClick={handleSelectAndPlay}
+      onDoubleClick={handleSelectAndPlay}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
     >
       <div
@@ -93,7 +105,7 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
         )}
       </div>
 
-      <div className="queue-item-info" onClick={handlePlay} style={{ cursor: 'pointer' }}>
+      <div className="queue-item-info" style={{ cursor: 'pointer' }}>
         <span className="queue-item-title text-truncate">{song.title}</span>
         <span className="queue-item-artist text-truncate">{song.artist || 'Unknown'}</span>
       </div>
@@ -104,7 +116,7 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
         <button
           id={`queue-play-${song.id}`}
           className="btn btn-icon btn-sm queue-play-btn"
-          onClick={handlePlay}
+          onClick={handleTogglePlay}
           aria-label={isCurrent && isPlaying ? "Pause" : "Play"}
           title={isCurrent && isPlaying ? "Pause" : "Play"}
         >{isCurrent && isPlaying ? '❚❚' : '▶'}</button>

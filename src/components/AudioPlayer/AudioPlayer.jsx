@@ -179,6 +179,9 @@ export default function AudioPlayer() {
     return () => clearTimeout(timer);
   }, [currentSong?.path, getNextSong, getOrLoadBlob, albumArtCache, setAlbumArt]);
 
+  // Track whether we are actively loading/switching a track to prevent unwanted pause events
+  const isLoadingTrackRef = useRef(false);
+
   // ── Audio source management ──────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current;
@@ -188,6 +191,7 @@ export default function AudioPlayer() {
 
     const loadAndPlay = async () => {
       try {
+        isLoadingTrackRef.current = true;
         const isCached = blobCacheRef.current.has(currentSong.path);
         console.log(
           `[AudioPlayer] ${isCached ? '⚡ Instant cache hit' : 'Loading'} for:`,
@@ -200,13 +204,15 @@ export default function AudioPlayer() {
         audio.src = blobUrl;
         audio.load();
 
-        if (isPlaying) {
+        const shouldPlay = usePlayerStore.getState().isPlaying;
+        if (shouldPlay) {
           try {
             await audio.play();
           } catch (playErr) {
             if (isCancelled) return;
             if (playErr.name !== 'AbortError') {
               console.warn('[AudioPlayer] audio.play() rejected:', playErr);
+              setIsPlaying(false);
             }
           }
         }
@@ -215,6 +221,8 @@ export default function AudioPlayer() {
         console.error('[AudioPlayer] Failed to load audio file:', err);
         showToast('Playback error: ' + (err.message || err), 'error');
         setIsPlaying(false);
+      } finally {
+        isLoadingTrackRef.current = false;
       }
     };
 
@@ -252,6 +260,16 @@ export default function AudioPlayer() {
   }, [volume, isMuted]);
 
   // ── Audio event handlers ─────────────────────────────────────
+  function handlePlay() {
+    setIsPlaying(true);
+  }
+
+  function handlePause() {
+    if (!isLoadingTrackRef.current) {
+      setIsPlaying(false);
+    }
+  }
+
   function handleTimeUpdate() {
     const audio = audioRef.current;
     if (!audio) return;
@@ -355,6 +373,8 @@ export default function AudioPlayer() {
     <footer className="audio-player" role="complementary" aria-label="Audio Player">
       <audio
         ref={audioRef}
+        onPlay={handlePlay}
+        onPause={handlePause}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
