@@ -66,7 +66,7 @@ export default function AudioPlayer() {
     duration, setDuration,
     volume, setVolume,
     isMuted, setIsMuted,
-    isShuffled, setIsShuffled,
+    isShuffled, toggleShuffle,
     repeatMode, cycleRepeat,
     showToast,
     albumArtCache, setAlbumArt,
@@ -321,24 +321,19 @@ export default function AudioPlayer() {
       return;
     }
 
-    let nextIndex;
-    if (isShuffled) {
-      nextIndex = Math.floor(Math.random() * queue.length);
-    } else {
-      nextIndex = currentIndex + 1;
-      if (nextIndex >= queue.length) {
-        if (repeatMode === 'all') {
-          nextIndex = 0;
-        } else {
-          setIsPlaying(false);
-          return;
-        }
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= queue.length) {
+      if (repeatMode === 'all') {
+        nextIndex = 0;
+      } else {
+        setIsPlaying(false);
+        return;
       }
     }
 
     setCurrentIndex(nextIndex);
     setIsPlaying(true);
-  }, [queue, currentIndex, repeatMode, isShuffled]);
+  }, [queue.length, currentIndex, repeatMode]);
 
   const handlePrev = useCallback(() => {
     const audio = audioRef.current;
@@ -414,9 +409,9 @@ export default function AudioPlayer() {
           <button
             id="shuffle-btn"
             className={`btn btn-icon player-ctrl-btn ${isShuffled ? 'active' : ''}`}
-            onClick={() => setIsShuffled(!isShuffled)}
-            aria-label="Shuffle"
-            title="Shuffle"
+            onClick={toggleShuffle}
+            aria-label={isShuffled ? 'Disable Shuffle' : 'Enable Shuffle'}
+            title={isShuffled ? 'Shuffle: ON' : 'Shuffle: OFF'}
           >
             <IconShuffle />
           </button>

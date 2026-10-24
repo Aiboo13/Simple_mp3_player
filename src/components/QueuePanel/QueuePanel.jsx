@@ -134,7 +134,8 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
 
 export default function QueuePanel() {
   const {
-    queue, currentIndex, reorderQueue, clearQueue, isPlaying, showToast
+    queue, currentIndex, reorderQueue, clearQueue, isPlaying, showToast,
+    isShuffled, toggleShuffle,
   } = usePlayerStore();
 
   const [activeId, setActiveId] = useState(null);
@@ -173,21 +174,36 @@ export default function QueuePanel() {
       {/* ── Header ── */}
       <div className="section-header queue-header">
         <div>
-          <h2>QUEUE</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2>QUEUE</h2>
+            {isShuffled && <span className="badge badge-yellow mono" style={{ fontSize: '10px' }}>SHUFFLED</span>}
+          </div>
           <div className="queue-meta mono">
             {queue.length} tracks · {formatDuration(totalDuration)}
           </div>
         </div>
-        {queue.length > 0 && (
-          <button
-            id="clear-queue-btn"
-            className="btn btn-sm queue-clear-btn"
-            onClick={() => { clearQueue(); showToast('Queue cleared'); }}
-            title="Clear queue"
-          >
-            Clear
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {queue.length > 1 && (
+            <button
+              id="queue-shuffle-btn"
+              className={`btn btn-sm ${isShuffled ? 'btn-yellow' : ''}`}
+              onClick={toggleShuffle}
+              title={isShuffled ? 'Restore original order' : 'Shuffle queue'}
+            >
+              ⇄ Shuffle
+            </button>
+          )}
+          {queue.length > 0 && (
+            <button
+              id="clear-queue-btn"
+              className="btn btn-sm queue-clear-btn"
+              onClick={() => { clearQueue(); showToast('Queue cleared'); }}
+              title="Clear queue"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Queue List with DnD ── */}

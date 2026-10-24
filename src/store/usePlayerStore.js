@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { parseLrc } from '../lib/lrc';
 
+function shuffleArray(arr) {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 const usePlayerStore = create((set, get) => ({
   // ── Library ──────────────────────────────────────────────
   songs: [],
@@ -27,6 +36,7 @@ const usePlayerStore = create((set, get) => ({
 
   // ── Queue ─────────────────────────────────────────────────
   queue: [],
+  originalQueue: [],
   setQueue: (queue) => set({ queue }),
   currentIndex: -1,
   setCurrentIndex: (currentIndex) => set({ currentIndex }),
@@ -34,27 +44,61 @@ const usePlayerStore = create((set, get) => ({
   addToQueue: (song) =>
     set((state) => ({
       queue: [...state.queue, song],
+      originalQueue:
+        state.originalQueue.length > 0
+          ? [...state.originalQueue, song]
+          : state.originalQueue,
     })),
 
   addAllToQueue: (songs) =>
     set((state) => ({
       queue: [...state.queue, ...songs],
+      originalQueue:
+        state.originalQueue.length > 0
+          ? [...state.originalQueue, ...songs]
+          : state.originalQueue,
     })),
 
-  replaceQueue: (songs, startIndex = 0) =>
-    set({ queue: songs, currentIndex: startIndex }),
+  replaceQueue: (songs, startIndex = 0) => {
+    const { isShuffled } = get();
+    if (isShuffled && songs.length > 1) {
+      const selectedSong = songs[startIndex];
+      const remaining = songs.filter((_, idx) => idx !== startIndex);
+      const shuffledRemaining = shuffleArray(remaining);
+      const newQueue = selectedSong
+        ? [selectedSong, ...shuffledRemaining]
+        : shuffleArray(songs);
+
+      set({
+        queue: newQueue,
+        currentIndex: 0,
+        originalQueue: [...songs],
+      });
+    } else {
+      set({
+        queue: songs,
+        currentIndex: startIndex,
+        originalQueue: [],
+      });
+    }
+  },
 
   removeFromQueue: (index) =>
     set((state) => {
       const queue = [...state.queue];
-      queue.splice(index, 1);
+      const [removed] = queue.splice(index, 1);
       const currentIndex =
         state.currentIndex >= queue.length
           ? queue.length - 1
           : state.currentIndex > index
           ? state.currentIndex - 1
           : state.currentIndex;
-      return { queue, currentIndex };
+
+      const originalQueue = removed
+        ? state.originalQueue.filter((s) => s.id !== removed.id)
+        : state.originalQueue;
+
+      return { queue, currentIndex, originalQueue };
     }),
 
   reorderQueue: (from, to) =>
@@ -75,7 +119,7 @@ const usePlayerStore = create((set, get) => ({
       return { queue, currentIndex };
     }),
 
-  clearQueue: () => set({ queue: [], currentIndex: -1 }),
+  clearQueue: () => set({ queue: [], currentIndex: -1, originalQueue: [] }),
 
   // ── Player ────────────────────────────────────────────────
   isPlaying: false,
@@ -95,6 +139,67 @@ const usePlayerStore = create((set, get) => ({
 
   isShuffled: false,
   setIsShuffled: (isShuffled) => set({ isShuffled }),
+  toggleShuffle: () =>
+    set((state) => {
+      const { isShuffled, queue, currentIndex, originalQueue } = state;
+      if (!isShuffled) {
+        // Turning shuffle ON -> Shuffle the queue
+        if (queue.length <= 1) {
+          return { isShuffled: true, originalQueue: [...queue] };
+        }
+        const currentSong =
+          currentIndex >= 0 && currentIndex < queue.length
+            ? queue[currentIndex]
+            : null;
+
+        let newQueue;
+        let newIndex = 0;
+
+        if (currentSong) {
+          // Keep current song at index 0 so it continues playing, shuffle the rest
+          const remaining = queue.filter((_, idx) => idx !== currentIndex);
+          const shuffledRemaining = shuffleArray(remaining);
+          newQueue = [currentSong, ...shuffledRemaining];
+          newIndex = 0;
+        } else {
+          newQueue = shuffleArray(queue);
+          newIndex = -1;
+        }
+
+        return {
+          isShuffled: true,
+          queue: newQueue,
+          currentIndex: newIndex,
+          originalQueue: originalQueue.length > 0 ? originalQueue : [...queue],
+        };
+      } else {
+        // Turning shuffle OFF -> Restore original queue order
+        const currentSong =
+          currentIndex >= 0 && currentIndex < queue.length
+            ? queue[currentIndex]
+            : null;
+
+        const baseQueue =
+          originalQueue && originalQueue.length > 0
+            ? [...originalQueue]
+            : [...queue];
+
+        let restoredIndex = currentIndex;
+        if (currentSong) {
+          const foundIdx = baseQueue.findIndex((s) => s.id === currentSong.id);
+          if (foundIdx !== -1) {
+            restoredIndex = foundIdx;
+          }
+        }
+
+        return {
+          isShuffled: false,
+          queue: baseQueue,
+          currentIndex: restoredIndex,
+          originalQueue: [],
+        };
+      }
+    }),
 
   // 'none' | 'one' | 'all'
   repeatMode: 'none',
