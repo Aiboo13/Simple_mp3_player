@@ -184,6 +184,7 @@ export default function AudioPlayer() {
 
   // Track whether we are actively loading/switching a track to prevent unwanted pause events
   const isLoadingTrackRef = useRef(false);
+  const lastPlayToggleRef = useRef(0);
 
   // ── Audio source management ──────────────────────────────────
   useEffect(() => {
@@ -195,6 +196,11 @@ export default function AudioPlayer() {
     const loadAndPlay = async () => {
       try {
         isLoadingTrackRef.current = true;
+        // Safely pause currently playing audio before swapping source
+        if (!audio.paused) {
+          audio.pause();
+        }
+
         const isCached = blobCacheRef.current.has(currentSong.path);
         console.log(
           `[AudioPlayer] ${isCached ? '⚡ Instant cache hit' : 'Loading'} for:`,
@@ -210,7 +216,10 @@ export default function AudioPlayer() {
         const shouldPlay = usePlayerStore.getState().isPlaying;
         if (shouldPlay) {
           try {
-            await audio.play();
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              await playPromise;
+            }
           } catch (playErr) {
             if (isCancelled) return;
             if (playErr.name !== 'AbortError') {
@@ -234,7 +243,7 @@ export default function AudioPlayer() {
     return () => {
       isCancelled = true;
     };
-  }, [currentSong?.path, getOrLoadBlob]);
+  }, [currentSong?.id, currentSong?.path, getOrLoadBlob]);
 
   // ── Sync play/pause when user toggles play button ─────────────
   useEffect(() => {
@@ -242,11 +251,14 @@ export default function AudioPlayer() {
     if (!audio || !currentSong || !audio.src) return;
     if (isPlaying) {
       if (audio.paused) {
-        audio.play().catch((err) => {
-          if (err.name !== 'AbortError') {
-            console.warn('[AudioPlayer] Play toggle error:', err);
-          }
-        });
+        const p = audio.play();
+        if (p !== undefined) {
+          p.catch((err) => {
+            if (err.name !== 'AbortError') {
+              console.warn('[AudioPlayer] Play toggle error:', err);
+            }
+          });
+        }
       }
     } else {
       if (!audio.paused) {
@@ -295,7 +307,8 @@ export default function AudioPlayer() {
   }
 
   function handleEnded() {
-    handleNext();
+    // PRD Acceptance Criteria: Always fetch latest queue reference when song ends
+    usePlayerStore.getState().playNextSong(false);
   }
 
   function handleAudioError() {
@@ -315,12 +328,12 @@ export default function AudioPlayer() {
   }
 
   const handleNext = useCallback((manual = false) => {
-    playNextSong(manual);
-  }, [playNextSong]);
+    usePlayerStore.getState().playNextSong(manual);
+  }, []);
 
   const handlePrev = useCallback(() => {
-    playPrevSong();
-  }, [playPrevSong]);
+    usePlayerStore.getState().playPrevSong();
+  }, []);
 
   // ── Seek control ─────────────────────────────────────────────
   function handleSeek(e) {
@@ -398,7 +411,12 @@ export default function AudioPlayer() {
           <button
             id="play-pause-btn"
             className="btn btn-icon player-play-btn"
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => {
+              const now = Date.now();
+              if (now - lastPlayToggleRef.current < 200) return;
+              lastPlayToggleRef.current = now;
+              setIsPlaying(!isPlaying);
+            }}
             disabled={!currentSong}
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >

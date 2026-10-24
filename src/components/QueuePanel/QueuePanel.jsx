@@ -166,15 +166,19 @@ export default function QueuePanel() {
   }
 
   function handleDragEnd(event) {
-    const { active, over } = event;
-    setActiveId(null);
+    try {
+      const { active, over } = event;
+      setActiveId(null);
 
-    if (!over || active.id === over.id) return;
+      if (!over || active.id === over.id) return;
 
-    const fromIndex = queue.findIndex((s) => s.id === active.id);
-    const toIndex = queue.findIndex((s) => s.id === over.id);
-    if (fromIndex !== -1 && toIndex !== -1) {
-      reorderQueue(fromIndex, toIndex);
+      const fromIndex = queue.findIndex((s) => s.id === active.id);
+      const toIndex = queue.findIndex((s) => s.id === over.id);
+      if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+        reorderQueue(fromIndex, toIndex);
+      }
+    } catch (err) {
+      console.error('[QueuePanel] Drag reorder error:', err);
     }
   }
 

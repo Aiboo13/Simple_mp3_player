@@ -402,6 +402,38 @@
 }
 .song-row.current:hover { background: #f0c000; }
 
+/* Selected state (Single click highlight - PRD v1.2) */
+.song-row.selected {
+  background: rgba(232, 41, 26, 0.08);
+  box-shadow: inset 4px 0 0 var(--clr-red);
+}
+.song-row.selected:hover {
+  background: rgba(232, 41, 26, 0.14);
+}
+.song-row.current.selected {
+  background: var(--clr-yellow);
+  box-shadow: inset 4px 0 0 var(--clr-red);
+}
+.song-row.current.selected:hover {
+  background: #f0c000;
+}
+
+[data-theme="bw"] .song-row.selected {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 4px 0 0 #ffffff;
+}
+[data-theme="bw"] .song-row.selected:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="darkweb"] .song-row.selected {
+  background: rgba(0, 255, 102, 0.12);
+  box-shadow: inset 4px 0 0 #00ff66;
+}
+[data-theme="darkweb"] .song-row.selected:hover {
+  background: rgba(0, 255, 102, 0.2);
+}
+
 .song-row-num {
   font-size: 12px;
   color: #999;

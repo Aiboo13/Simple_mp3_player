@@ -50,46 +50,69 @@ export default function ContextMenu() {
 
   function handlePlayNext(e) {
     e.stopPropagation();
-    insertPlayNext(song);
-    closeContextMenu();
+    try {
+      insertPlayNext(song);
+    } catch (err) {
+      console.error('[ContextMenu] handlePlayNext error:', err);
+    } finally {
+      closeContextMenu();
+    }
   }
 
   function handlePlayNow(e) {
     e.stopPropagation();
-    const { queue } = usePlayerStore.getState();
-    if (source === 'queue' && typeof index === 'number') {
-      setCurrentIndex(index);
-      setIsPlaying(true);
-    } else {
-      const existingIdx = queue.findIndex((s) => s.id === song.id);
-      if (existingIdx !== -1) {
-        setCurrentIndex(existingIdx);
+    try {
+      const state = usePlayerStore.getState();
+      if (source === 'queue' && typeof index === 'number') {
+        setCurrentIndex(index);
         setIsPlaying(true);
       } else {
-        // Insert right next and play immediately
-        insertPlayNext(song);
-        const nextIdx = usePlayerStore.getState().currentIndex + 1;
-        setCurrentIndex(Math.max(0, nextIdx));
-        setIsPlaying(true);
+        const existingIdx = state.queue.findIndex((s) => s.id === song.id);
+        if (existingIdx !== -1) {
+          setCurrentIndex(existingIdx);
+          setIsPlaying(true);
+        } else if (state.queue.length === 0 || state.currentIndex === -1) {
+          state.replaceQueue([song], 0);
+          setIsPlaying(true);
+        } else {
+          insertPlayNext(song);
+          const updatedState = usePlayerStore.getState();
+          const nextIdx = Math.min(updatedState.currentIndex + 1, updatedState.queue.length - 1);
+          setCurrentIndex(Math.max(0, nextIdx));
+          setIsPlaying(true);
+        }
       }
+    } catch (err) {
+      console.error('[ContextMenu] handlePlayNow error:', err);
+    } finally {
+      closeContextMenu();
     }
-    closeContextMenu();
   }
 
   function handleAddToQueue(e) {
     e.stopPropagation();
-    addToQueue(song);
-    usePlayerStore.getState().showToast(`Added to queue: ${song.title}`);
-    closeContextMenu();
+    try {
+      addToQueue(song);
+      usePlayerStore.getState().showToast(`Added to queue: ${song.title}`);
+    } catch (err) {
+      console.error('[ContextMenu] handleAddToQueue error:', err);
+    } finally {
+      closeContextMenu();
+    }
   }
 
   function handleRemoveFromQueue(e) {
     e.stopPropagation();
-    if (typeof index === 'number') {
-      removeFromQueue(index);
-      usePlayerStore.getState().showToast(`Removed from queue`);
+    try {
+      if (typeof index === 'number') {
+        removeFromQueue(index);
+        usePlayerStore.getState().showToast(`Removed from queue`);
+      }
+    } catch (err) {
+      console.error('[ContextMenu] handleRemoveFromQueue error:', err);
+    } finally {
+      closeContextMenu();
     }
-    closeContextMenu();
   }
 
   return (

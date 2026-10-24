@@ -299,15 +299,27 @@ pub async fn get_playlist_songs(
 
 #[tauri::command]
 pub async fn get_lyrics(path: String) -> Result<Option<String>, String> {
-    Ok(scanner::get_lyrics_data(&path))
+    tokio::task::spawn_blocking(move || {
+        Ok(scanner::get_lyrics_data(&path))
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
 }
 
 #[tauri::command]
 pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
-    Ok(scanner::get_album_art_data(&path))
+    tokio::task::spawn_blocking(move || {
+        Ok(scanner::get_album_art_data(&path))
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
 }
 
 #[tauri::command]
 pub async fn read_audio_file(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| format!("Failed to read audio file: {}", e))
+    tokio::task::spawn_blocking(move || {
+        std::fs::read(&path).map_err(|e| format!("Failed to read audio file: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
 }

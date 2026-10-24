@@ -31,6 +31,7 @@ export default function MainPanel() {
 
   const [displaySongs, setDisplaySongs] = useState([]);
   const [loadingArt, setLoadingArt] = useState(false);
+  const [selectedSongId, setSelectedSongId] = useState(null);
 
   const currentSong = queue[currentIndex] ?? null;
 
@@ -236,11 +237,14 @@ export default function MainPanel() {
                   song={song}
                   index={index}
                   isCurrent={isCurrentSong(song)}
+                  isSelected={selectedSongId === song.id}
                   isPlaying={isPlaying && isCurrentSong(song)}
+                  onSelect={() => setSelectedSongId(song.id)}
                   onPlay={() => handlePlaySong(song, index)}
                   onTogglePlay={() => handleTogglePlaySong(song, index)}
                   onContextMenu={(e) => {
                     e.preventDefault();
+                    setSelectedSongId(song.id);
                     openContextMenu({
                       x: e.clientX,
                       y: e.clientY,
@@ -259,30 +263,38 @@ export default function MainPanel() {
   );
 }
 
-function SongRow({ song, index, isCurrent, isPlaying, onPlay, onTogglePlay, onContextMenu }) {
+function SongRow({ song, index, isCurrent, isSelected, isPlaying, onSelect, onPlay, onTogglePlay, onContextMenu }) {
   const { addToQueue, showToast } = usePlayerStore();
 
   function handleAddToQueue(e) {
     e.stopPropagation();
-    addToQueue(song);
-    showToast(`Added to queue: ${song.title}`);
-  }
-
-  function handleRowClick() {
-    onPlay();
+    try {
+      addToQueue(song);
+      showToast(`Added to queue: ${song.title}`);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   return (
     <div
       id={`song-row-${song.id}`}
-      className={`song-row ${isCurrent ? 'current' : ''}`}
+      className={`song-row ${isCurrent ? 'current' : ''} ${isSelected ? 'selected' : ''}`}
       role="listitem"
-      onClick={handleRowClick}
-      onDoubleClick={handleRowClick}
+      onClick={onSelect}
+      onDoubleClick={onPlay}
       onContextMenu={onContextMenu}
       tabIndex={0}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPlay()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          onPlay();
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          onTogglePlay();
+        }
+      }}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}
+      aria-selected={isSelected}
     >
       <div className="song-row-num mono">
         {isPlaying ? (

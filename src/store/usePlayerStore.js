@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { parseLrc } from '../lib/lrc';
+import { parseLrc } from '../lib/lrc.js';
 
 function shuffleArray(arr) {
   const result = [...arr];
@@ -9,6 +9,9 @@ function shuffleArray(arr) {
   }
   return result;
 }
+
+let lastSkipTimestamp = 0;
+const SKIP_THROTTLE_MS = 250;
 
 const usePlayerStore = create((set, get) => ({
   // ── Library ──────────────────────────────────────────────
@@ -61,7 +64,7 @@ const usePlayerStore = create((set, get) => ({
 
   // Insert a song right next in the queue (2nd in active queue below current song)
   insertPlayNext: (song) => {
-    const { queue, currentIndex } = get();
+    const { queue, currentIndex, originalQueue } = get();
 
     // If queue is empty or nothing is playing, play immediately
     if (queue.length === 0 || currentIndex === -1) {
@@ -69,6 +72,7 @@ const usePlayerStore = create((set, get) => ({
         queue: [song],
         currentIndex: 0,
         isPlaying: true,
+        originalQueue: originalQueue.length > 0 ? [song] : [],
       });
       get().showToast(`✓ Playing: ${song.title}`);
       return;
@@ -89,6 +93,25 @@ const usePlayerStore = create((set, get) => ({
     const existingIndex = queue.findIndex((s) => s.id === song.id);
     const newQueue = [...queue];
 
+    // Synchronize originalQueue if shuffle was enabled
+    let newOriginalQueue = originalQueue.length > 0 ? [...originalQueue] : [];
+    if (newOriginalQueue.length > 0) {
+      const origExistingIndex = newOriginalQueue.findIndex((s) => s.id === song.id);
+      const currentSongObj = queue[currentIndex];
+      const origCurrentIndex = currentSongObj
+        ? newOriginalQueue.findIndex((s) => s.id === currentSongObj.id)
+        : -1;
+
+      if (origExistingIndex !== -1) {
+        const [origItem] = newOriginalQueue.splice(origExistingIndex, 1);
+        const targetIdx = origCurrentIndex !== -1 ? origCurrentIndex + 1 : 0;
+        newOriginalQueue.splice(targetIdx, 0, origItem);
+      } else {
+        const targetIdx = origCurrentIndex !== -1 ? origCurrentIndex + 1 : newOriginalQueue.length;
+        newOriginalQueue.splice(targetIdx, 0, song);
+      }
+    }
+
     if (existingIndex !== -1) {
       // Song is already somewhere in queue -> reposition it right next
       const [item] = newQueue.splice(existingIndex, 1);
@@ -96,20 +119,24 @@ const usePlayerStore = create((set, get) => ({
         // Since an item before currentIndex was removed, currentIndex shifts down by 1
         const newCurrentIndex = currentIndex - 1;
         newQueue.splice(newCurrentIndex + 1, 0, item);
-        set({ queue: newQueue, currentIndex: newCurrentIndex });
+        set({
+          queue: newQueue,
+          currentIndex: newCurrentIndex,
+          originalQueue: newOriginalQueue,
+        });
       } else {
         newQueue.splice(currentIndex + 1, 0, item);
-        set({ queue: newQueue });
+        set({
+          queue: newQueue,
+          originalQueue: newOriginalQueue,
+        });
       }
     } else {
       // Song not in queue -> insert at currentIndex + 1
       newQueue.splice(currentIndex + 1, 0, song);
       set({
         queue: newQueue,
-        originalQueue:
-          get().originalQueue.length > 0
-            ? [...get().originalQueue, song]
-            : get().originalQueue,
+        originalQueue: newOriginalQueue,
       });
     }
 
@@ -133,7 +160,7 @@ const usePlayerStore = create((set, get) => ({
       });
     } else {
       set({
-        queue: songs,
+        queue: [...songs],
         currentIndex: startIndex,
         originalQueue: [],
       });
@@ -276,6 +303,12 @@ const usePlayerStore = create((set, get) => ({
 
   // ── Navigation & Skip Actions ───────────────────────────
   playNextSong: (manual = false) => {
+    const now = Date.now();
+    if (manual && now - lastSkipTimestamp < SKIP_THROTTLE_MS) {
+      return;
+    }
+    lastSkipTimestamp = now;
+
     const { queue, currentIndex, repeatMode } = get();
     if (queue.length === 0) return;
 
@@ -298,6 +331,12 @@ const usePlayerStore = create((set, get) => ({
   },
 
   playPrevSong: () => {
+    const now = Date.now();
+    if (now - lastSkipTimestamp < SKIP_THROTTLE_MS) {
+      return;
+    }
+    lastSkipTimestamp = now;
+
     const { queue, currentIndex, repeatMode, currentTime } = get();
     if (queue.length === 0) return;
 
@@ -379,7 +418,7 @@ const usePlayerStore = create((set, get) => ({
   },
 
   // ── Computed ──────────────────────────────────────────────
-  get currentSong() {
+  getCurrentSong: () => {
     const { queue, currentIndex } = get();
     return currentIndex >= 0 && currentIndex < queue.length
       ? queue[currentIndex]
