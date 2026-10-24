@@ -246,3 +246,461 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ============================================================
+   THEME DEFINITIONS
+   ============================================================ */
+
+/* ── 1. Default (Brutalism) ── */
+[data-theme="default"] {
+  --clr-black: #0a0a0a;
+  --clr-white: #f5f5f0;
+  --clr-red: #e8291a;
+  --clr-yellow: #f5c800;
+  --clr-blue: #1a5cff;
+  --clr-green: #00c44f;
+
+  --surface-bg: #f0ede8;
+  --surface-panel: #e8e4de;
+  --surface-card: #ffffff;
+  --surface-dark: #1a1a1a;
+  --surface-dark-2: #252525;
+  --surface-dark-3: #303030;
+
+  --accent-primary: var(--clr-red);
+  --accent-secondary: var(--clr-yellow);
+  --accent-tertiary: var(--clr-blue);
+
+  --border-width: 3px;
+  --border: var(--border-width) solid var(--clr-black);
+  --border-thick: 4px solid var(--clr-black);
+
+  --shadow-sm: 3px 3px 0 var(--clr-black);
+  --shadow-md: 5px 5px 0 var(--clr-black);
+  --shadow-lg: 8px 8px 0 var(--clr-black);
+  --shadow-xl: 12px 12px 0 var(--clr-black);
+}
+
+/* ── 2. Mode Black and White (Monochrome Noir & Gray) ── */
+[data-theme="bw"] {
+  --clr-black: #000000;
+  --clr-white: #c8c8c8;       /* Diatur ke abu-abu (sebelumnya #ffffff) */
+  --clr-red: #2a2a2a;
+  --clr-yellow: #9e9e9e;      /* Diatur ke abu-abu */
+  --clr-blue: #444444;
+  --clr-green: #aaaaaa;
+
+  --surface-bg: #b0b0b0;      /* Latar belakang utama: abu-abu */
+  --surface-panel: #9e9e9e;   /* Panel samping: abu-abu sedang */
+  --surface-card: #c0c0c0;    /* Kartu/kontainer: abu-abu muda */
+  --surface-dark: #000000;
+  --surface-dark-2: #181818;
+  --surface-dark-3: #2c2c2c;
+
+  --accent-primary: #000000;
+  --accent-secondary: #555555;
+  --accent-tertiary: #888888;
+
+  --border-width: 3px;
+  --border: var(--border-width) solid #000000;
+  --border-thick: 4px solid #000000;
+
+  --shadow-sm: 3px 3px 0 #000000;
+  --shadow-md: 5px 5px 0 #000000;
+  --shadow-lg: 8px 8px 0 #000000;
+  --shadow-xl: 12px 12px 0 #000000;
+}
+
+[data-theme="bw"] body,
+[data-theme="bw"].app-shell {
+  background: #b0b0b0 !important;
+  color: #000000 !important;
+}
+
+[data-theme="bw"] .nav-brand {
+  background: #111111 !important;
+  color: #c8c8c8 !important;
+  border-bottom: 3px solid #666666 !important;
+}
+
+[data-theme="bw"] .btn-primary {
+  background: #000000 !important;
+  color: #c8c8c8 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .btn-primary:hover {
+  background: #252525 !important;
+  color: #e0e0e0 !important;
+  box-shadow: 6px 6px 0 #000000 !important;
+}
+
+[data-theme="bw"] .song-row.current {
+  background: #000000 !important;
+  color: #c8c8c8 !important;
+  border-top: 2px solid #000000 !important;
+  border-bottom: 2px solid #000000 !important;
+}
+
+[data-theme="bw"] .song-row.current .song-name,
+[data-theme="bw"] .song-row.current .song-row-num,
+[data-theme="bw"] .song-row.current .song-row-dur {
+  color: #dcdcdc !important;
+}
+
+[data-theme="bw"] .song-row.current .song-row-artist,
+[data-theme="bw"] .song-row.current .song-row-album {
+  color: #8f8f8f !important;
+}
+
+[data-theme="bw"] .song-row.current:hover {
+  background: #1c1c1c !important;
+}
+
+[data-theme="bw"] .player-play-btn {
+  background: #9e9e9e !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 4px 4px 0 #000000 !important;
+}
+
+[data-theme="bw"] .player-play-btn:hover {
+  background: #b5b5b5 !important;
+  box-shadow: 6px 6px 0 #000000 !important;
+}
+
+[data-theme="bw"] .seek-fill {
+  background: #7a7a7a !important;
+}
+
+[data-theme="bw"] .seek-thumb {
+  background: #9e9e9e !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .player-ctrl-btn.active {
+  background: #7a7a7a !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .badge {
+  background: #222222 !important;
+  color: #c8c8c8 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .badge-red,
+[data-theme="bw"] .badge-blue {
+  background: #333333 !important;
+  color: #c8c8c8 !important;
+  border-color: #555555 !important;
+}
+
+[data-theme="bw"] .queue-item.current {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-left: 4px solid #000000 !important;
+}
+
+[data-theme="bw"] .nav-theme-pill.active {
+  background: #333333 !important;
+  border-color: #777777 !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+
+/* ── 3. Mode Dark Web (Terminal Hacker / Cyberpunk Matrix) ── */
+[data-theme="darkweb"] {
+  --clr-black: #00ff66;
+  --clr-white: #030605;
+  --clr-red: #ff0055;
+  --clr-yellow: #00ff66;
+  --clr-blue: #00e5ff;
+  --clr-green: #00ff66;
+
+  --surface-bg: #030605;
+  --surface-panel: #070e0a;
+  --surface-card: #0a140f;
+  --surface-dark: #020403;
+  --surface-dark-2: #050b07;
+  --surface-dark-3: #0c1811;
+
+  --accent-primary: #00ff66;
+  --accent-secondary: #00e5ff;
+  --accent-tertiary: #ff0055;
+
+  --border-width: 2px;
+  --border: 2px solid #00ff66;
+  --border-thick: 3px solid #00ff66;
+
+  --shadow-sm: 2px 2px 0 #00ff66;
+  --shadow-md: 4px 4px 0 #00ff66;
+  --shadow-lg: 6px 6px 0 #00ff66;
+  --shadow-xl: 10px 10px 0 #00ff66;
+}
+
+[data-theme="darkweb"] body,
+[data-theme="darkweb"].app-shell {
+  background: #030605 !important;
+  color: #33ff77 !important;
+}
+
+[data-theme="darkweb"] .app-panels {
+  border-bottom: 3px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .nav-panel {
+  background: #020403 !important;
+  border-right: 3px solid #00ff66 !important;
+  color: #a4f7c7 !important;
+}
+
+[data-theme="darkweb"] .nav-brand {
+  background: #050b07 !important;
+  border-bottom: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.7);
+}
+
+[data-theme="darkweb"] .nav-brand-icon {
+  color: #00ff66 !important;
+  filter: drop-shadow(0 0 6px #00ff66);
+}
+
+[data-theme="darkweb"] .nav-item {
+  color: #79c79b !important;
+}
+
+[data-theme="darkweb"] .nav-item:hover {
+  background: #0c1811 !important;
+  color: #00ff66 !important;
+  border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .nav-item.active {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.4) !important;
+}
+
+[data-theme="darkweb"] .main-panel {
+  background: #030605 !important;
+  color: #33ff77 !important;
+}
+
+[data-theme="darkweb"] .now-playing-area {
+  background: #050b07 !important;
+  border-bottom: 2px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .album-art-wrapper {
+  border: 2px solid #00ff66 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 102, 0.3) !important;
+}
+
+[data-theme="darkweb"] .empty-player-icon {
+  background: #070e0a !important;
+  border: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.3) !important;
+}
+
+[data-theme="darkweb"] .empty-player-text strong {
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .empty-player-text span {
+  color: #559972 !important;
+}
+
+[data-theme="darkweb"] .now-playing-title {
+  color: #00ff66 !important;
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+}
+
+[data-theme="darkweb"] .now-playing-artist {
+  color: #79c79b !important;
+}
+
+[data-theme="darkweb"] .song-list-cols {
+  background: #070e0a !important;
+  border-bottom: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .song-row {
+  border-bottom: 1px solid #0c1811 !important;
+  color: #d2fbe3 !important;
+}
+
+[data-theme="darkweb"] .song-row:hover {
+  background: #0a140f !important;
+}
+
+[data-theme="darkweb"] .song-row.current {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-top: 2px solid #00ff66 !important;
+  border-bottom: 2px solid #00ff66 !important;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.5) !important;
+}
+
+[data-theme="darkweb"] .song-row.current .song-name,
+[data-theme="darkweb"] .song-row.current .song-row-artist,
+[data-theme="darkweb"] .song-row.current .song-row-album,
+[data-theme="darkweb"] .song-row.current .song-row-num,
+[data-theme="darkweb"] .song-row.current .song-row-dur {
+  color: #030605 !important;
+  font-weight: 700;
+}
+
+[data-theme="darkweb"] .song-row-artist,
+[data-theme="darkweb"] .song-row-album {
+  color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .queue-panel {
+  background: #040806 !important;
+  border-left: 2px solid #00ff66 !important;
+  color: #33ff77 !important;
+}
+
+[data-theme="darkweb"] .queue-header {
+  background: #070e0a !important;
+  border-bottom: 2px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .queue-item {
+  border-bottom: 1px solid #0c1811 !important;
+  color: #d2fbe3 !important;
+}
+
+[data-theme="darkweb"] .queue-item:hover {
+  background: #0a140f !important;
+}
+
+[data-theme="darkweb"] .queue-item.current {
+  background: rgba(0, 255, 102, 0.12) !important;
+  border-left: 3px solid #00ff66 !important;
+}
+
+[data-theme="darkweb"] .audio-player {
+  background: #020403 !important;
+  border-top: 3px solid #00ff66 !important;
+  color: #00ff66 !important;
+  box-shadow: 0 -4px 16px rgba(0, 255, 102, 0.2) !important;
+}
+
+[data-theme="darkweb"] .player-title {
+  color: #00ff66 !important;
+  text-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
+}
+
+[data-theme="darkweb"] .player-artist {
+  color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .player-play-btn {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.8) !important;
+}
+
+[data-theme="darkweb"] .player-play-btn:hover {
+  background: #00e5ff !important;
+  border-color: #00e5ff !important;
+  box-shadow: 0 0 20px #00e5ff !important;
+}
+
+[data-theme="darkweb"] .player-ctrl-btn {
+  border-color: #123321 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .player-ctrl-btn:hover {
+  border-color: #00ff66 !important;
+  background: #0c1811 !important;
+  color: #00ff66 !important;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.4) !important;
+}
+
+[data-theme="darkweb"] .player-ctrl-btn.active {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 10px #00ff66 !important;
+}
+
+[data-theme="darkweb"] .seek-track {
+  background: #070e0a !important;
+  border: 1px solid #143b25 !important;
+}
+
+[data-theme="darkweb"] .seek-fill {
+  background: #00ff66 !important;
+  box-shadow: 0 0 8px #00ff66 !important;
+}
+
+[data-theme="darkweb"] .seek-thumb {
+  background: #00ff66 !important;
+  border: 2px solid #030605 !important;
+  box-shadow: 0 0 10px #00ff66 !important;
+}
+
+[data-theme="darkweb"] .btn {
+  background: #070e0a;
+  color: #00ff66;
+  border: 2px solid #00ff66;
+  box-shadow: 3px 3px 0 #00ff66;
+}
+
+[data-theme="darkweb"] .btn-primary {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border: 2px solid #00ff66 !important;
+  box-shadow: 3px 3px 0 #00e5ff !important;
+  font-weight: 800;
+}
+
+[data-theme="darkweb"] .btn-primary:hover {
+  background: #00e5ff !important;
+  box-shadow: 0 0 12px #00e5ff !important;
+}
+
+[data-theme="darkweb"] .input {
+  background: #070e0a !important;
+  color: #00ff66 !important;
+  border: 2px solid #00ff66 !important;
+  box-shadow: inset 0 0 6px rgba(0, 255, 102, 0.2) !important;
+}
+
+[data-theme="darkweb"] .input::placeholder {
+  color: #27523a !important;
+}
+
+[data-theme="darkweb"] .badge {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border: 1px solid #00ff66 !important;
+  box-shadow: 0 0 6px rgba(0, 255, 102, 0.4) !important;
+}
+
+[data-theme="darkweb"] .nav-theme-pill.active {
+  background: #00ff66 !important;
+  border-color: #00ff66 !important;
+  color: #030605 !important;
+  box-shadow: 0 0 10px #00ff66 !important;
+}
+
+[data-theme="darkweb"] ::-webkit-scrollbar-track {
+  background: #070e0a !important;
+  border-left: 1px solid #143b25 !important;
+}
+
+[data-theme="darkweb"] ::-webkit-scrollbar-thumb {
+  background: #00ff66 !important;
+  box-shadow: 0 0 6px rgba(0, 255, 102, 0.5) !important;
+}

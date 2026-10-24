@@ -132,6 +132,33 @@ const usePlayerStore = create((set, get) => ({
   scanProgress: '',
   setScanProgress: (scanProgress) => set({ scanProgress }),
 
+  // ── Theme State ───────────────────────────────────────────
+  // 'default' (Brutalism) | 'bw' (Black & White) | 'darkweb' (Dark Web)
+  theme: typeof window !== 'undefined' ? (localStorage.getItem('mp3_player_theme') || 'default') : 'default',
+  setTheme: (theme) => {
+    try {
+      localStorage.setItem('mp3_player_theme', theme);
+    } catch (e) {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    set({ theme });
+  },
+  cycleTheme: () => {
+    const themes = ['default', 'bw', 'darkweb'];
+    const current = get().theme;
+    const nextIdx = (themes.indexOf(current) + 1) % themes.length;
+    const nextTheme = themes[nextIdx];
+    try {
+      localStorage.setItem('mp3_player_theme', nextTheme);
+    } catch (e) {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', nextTheme);
+    }
+    set({ theme: nextTheme });
+    return nextTheme;
+  },
+
   // ── Computed ──────────────────────────────────────────────
   get currentSong() {
     const { queue, currentIndex } = get();

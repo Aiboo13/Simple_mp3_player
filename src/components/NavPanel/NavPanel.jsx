@@ -43,6 +43,12 @@ const ICON_SCAN = (
   </svg>
 );
 
+const THEMES = [
+  { id: 'default', label: 'Brutal', icon: '🎨', name: 'Brutalism (Default)' },
+  { id: 'bw', label: 'B & W', icon: '⚪', name: 'Black & White' },
+  { id: 'darkweb', label: 'DarkWeb', icon: '🟢', name: 'Dark Web' },
+];
+
 export default function NavPanel() {
   const {
     activeView, setActiveView,
@@ -54,6 +60,7 @@ export default function NavPanel() {
     isScanning, setIsScanning, setScanProgress,
     showToast, replaceQueue,
     activePlaylistId,
+    theme, setTheme, cycleTheme,
   } = usePlayerStore();
 
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -158,10 +165,27 @@ export default function NavPanel() {
       {/* ── Brand ── */}
       <div className="nav-brand">
         <span className="nav-brand-icon">▶</span>
-        <div>
-          <div className="nav-brand-name">MP3 Player</div>
-          <div className="nav-brand-sub mono">LOKAL</div>
+        <div className="nav-brand-text">
+          <div className="nav-brand-name">
+            {theme === 'darkweb' ? 'DARK WEB' : 'MP3 Player'}
+          </div>
+          <div className="nav-brand-sub mono">
+            {theme === 'darkweb' ? '// TERMINAL' : 'LOKAL'}
+          </div>
         </div>
+        <button
+          id="quick-theme-btn"
+          className="btn btn-icon btn-sm nav-quick-theme"
+          onClick={() => {
+            const next = cycleTheme();
+            const found = THEMES.find((t) => t.id === next);
+            showToast(`Tema: ${found?.name || next}`);
+          }}
+          title="Ganti tema (Brutalism / B&W / Dark Web)"
+          aria-label="Ganti tema"
+        >
+          {theme === 'default' ? '🎨' : theme === 'bw' ? '⚪' : '🟢'}
+        </button>
       </div>
 
       {/* ── Search ── */}
@@ -280,8 +304,35 @@ export default function NavPanel() {
         </div>
       </div>
 
-      {/* ── Footer: Scan Directory ── */}
+      {/* ── Footer: Theme Selector & Scan Directory ── */}
       <div className="nav-footer">
+        {/* Theme Selector */}
+        <div className="nav-theme-box">
+          <div className="nav-theme-header mono">
+            <span className="nav-theme-title">THEME</span>
+            <span className="nav-theme-badge badge mono">
+              {THEMES.find((t) => t.id === theme)?.label || 'Theme'}
+            </span>
+          </div>
+          <div className="nav-theme-btns">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                id={`theme-btn-${t.id}`}
+                className={`btn btn-sm nav-theme-pill ${theme === t.id ? 'active' : ''}`}
+                onClick={() => {
+                  setTheme(t.id);
+                  showToast(`Tema: ${t.name}`);
+                }}
+                title={`Ganti tema ke ${t.name}`}
+              >
+                <span>{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {isScanning && (
           <div className="nav-scan-progress mono">Scanning...</div>
         )}

@@ -8,7 +8,12 @@ import { getAllSongs, getPlaylists } from './lib/api';
 import './App.css';
 
 export default function App() {
-  const { setSongs, setPlaylists, toast } = usePlayerStore();
+  const { setSongs, setPlaylists, toast, theme } = usePlayerStore();
+
+  // Sync theme attribute to html/document root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Load library on mount
   useEffect(() => {
@@ -28,7 +33,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="app-shell" id="app-root">
+    <div className="app-shell" id="app-root" data-theme={theme}>
       {/* ── 3-Panel Layout ── */}
       <div className="app-panels">
         <NavPanel />

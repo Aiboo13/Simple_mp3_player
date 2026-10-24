@@ -111,6 +111,7 @@ Aplikasi ini menggunakan pola arsitektur desktop modern:
 
 * **[`src/components/NavPanel/NavPanel.jsx`](src/components/NavPanel/NavPanel.jsx)**
   * Sidebar navigasi di sisi kiri.
+  * **Theme Switcher**: Tombol cepat di header brand dan kontrol 3-opsi tema di footer (*Brutalism (Default)*, *Black & White*, dan *Dark Web*) dengan persistensi `localStorage`.
   * Mengelola pemilihan folder musik menggunakan dialog sistem (`@tauri-apps/plugin-dialog`), menampilkan daftar folder aktif, dan mengelola playlist (tambah baru & hapus).
 
 * **[`src/components/MainPanel/MainPanel.jsx`](src/components/MainPanel/MainPanel.jsx)**

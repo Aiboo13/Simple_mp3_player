@@ -12,28 +12,52 @@
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-5) var(--sp-4);
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
   border-bottom: var(--border);
   border-color: #333;
   background: var(--clr-red);
   color: var(--clr-white);
 }
 .nav-brand-icon {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1;
   filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.3));
 }
+.nav-brand-text {
+  flex: 1;
+  min-width: 0;
+}
 .nav-brand-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
   text-transform: uppercase;
 }
 .nav-brand-sub {
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.2em;
   opacity: 0.8;
+}
+.nav-quick-theme {
+  background: var(--surface-card);
+  color: var(--clr-black);
+  border: 2px solid var(--clr-black);
+  box-shadow: 2px 2px 0 var(--clr-black);
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.nav-quick-theme:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--clr-black);
 }
 
 /* Search */
@@ -259,8 +283,69 @@
   padding: var(--sp-3);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
+
+/* Theme Box */
+.nav-theme-box {
+  background: var(--surface-dark-2);
+  border: 2px solid #333;
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nav-theme-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #888;
+  letter-spacing: 0.1em;
+}
+.nav-theme-title {
+  font-weight: 700;
+}
+.nav-theme-badge {
+  font-size: 9px;
+  padding: 0 4px;
+}
+.nav-theme-btns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.nav-theme-pill {
+  padding: 6px 2px;
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 2px solid #444;
+  background: var(--surface-dark-3);
+  color: #bbb;
+  box-shadow: none;
+  border-radius: 0;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.nav-theme-pill:hover {
+  transform: none;
+  border-color: #777;
+  color: #fff;
+  background: #333;
+}
+.nav-theme-pill.active {
+  border-color: var(--clr-yellow);
+  background: var(--clr-yellow);
+  color: #000;
+  box-shadow: 2px 2px 0 #000;
+}
+
 .nav-scan-btn {
   width: 100%;
   justify-content: center;
