@@ -26,6 +26,40 @@ const usePlayerStore = create((set, get) => ({
       }
       return { songs: Array.from(existingMap.values()) };
     }),
+  removeSongsBatch: (deletedIds) =>
+    set((state) => {
+      if (!Array.isArray(deletedIds) || deletedIds.length === 0) return {};
+      const idSet = new Set(deletedIds);
+      const newSongs = state.songs.filter((s) => !idSet.has(s.id));
+      const newQueue = state.queue.filter((s) => !idSet.has(s.id));
+      const newOriginalQueue = state.originalQueue.filter((s) => !idSet.has(s.id));
+
+      const currentSong = state.queue[state.currentIndex];
+      let newCurrentIndex = -1;
+      let shouldStopPlaying = false;
+
+      if (currentSong && !idSet.has(currentSong.id)) {
+        newCurrentIndex = newQueue.findIndex((s) => s.id === currentSong.id);
+      } else if (newQueue.length > 0) {
+        newCurrentIndex = Math.min(Math.max(0, state.currentIndex), newQueue.length - 1);
+        shouldStopPlaying = true;
+      } else {
+        shouldStopPlaying = true;
+      }
+
+      if (currentSong && idSet.has(currentSong.id)) {
+        get().strictMuteSink();
+      }
+
+      return {
+        songs: newSongs,
+        queue: newQueue,
+        originalQueue: newOriginalQueue,
+        currentIndex: newCurrentIndex,
+        isPlaying: shouldStopPlaying && (!currentSong || idSet.has(currentSong.id)) ? false : state.isPlaying,
+      };
+    }),
+  removeSongById: (id) => get().removeSongsBatch([id]),
 
   playlists: [],
   setPlaylists: (playlists) => set({ playlists }),

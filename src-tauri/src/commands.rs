@@ -98,13 +98,44 @@ pub async fn remove_music_dir(id: i64, state: State<'_, DbState>) -> Result<(), 
     Ok(())
 }
 
+/// Helper to filter out missing files on disk and purge their records from SQLite
+fn prune_missing_songs(conn: &mut rusqlite::Connection, raw_songs: Vec<Song>) -> Vec<Song> {
+    let mut songs = Vec::with_capacity(raw_songs.len());
+    let mut missing_ids = Vec::new();
+
+    for s in raw_songs {
+        if std::path::Path::new(&s.path).is_file() {
+            songs.push(s);
+        } else {
+            missing_ids.push(s.id);
+        }
+    }
+
+    if !missing_ids.is_empty() {
+        if let Ok(tx) = conn.transaction() {
+            if let (Ok(mut dpl), Ok(mut ds)) = (
+                tx.prepare("DELETE FROM playlist_songs WHERE song_id = ?1"),
+                tx.prepare("DELETE FROM songs WHERE id = ?1"),
+            ) {
+                for id in &missing_ids {
+                    let _ = dpl.execute(params![id]);
+                    let _ = ds.execute(params![id]);
+                }
+            }
+            let _ = tx.commit();
+        }
+    }
+
+    songs
+}
+
 #[tauri::command]
 pub async fn get_all_songs(
     sort_by: Option<String>,
     sort_order: Option<String>,
     state: State<'_, DbState>,
 ) -> Result<Vec<Song>, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut conn = state.0.lock().map_err(|e| e.to_string())?;
 
     let sort_col = match sort_by.as_deref() {
         Some("title") => "title COLLATE NOCASE",
@@ -127,70 +158,72 @@ pub async fn get_all_songs(
         sort_col, order
     );
 
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-    let songs = stmt.query_map([], |row| {
-        Ok(Song {
-            id: row.get(0)?,
-            path: row.get(1)?,
-            title: row.get(2)?,
-            artist: row.get(3)?,
-            album: row.get(4)?,
-            album_artist: row.get(5)?,
-            track_number: row.get(6)?,
-            duration_secs: row.get(7)?,
-            year: row.get(8)?,
-            genre: row.get(9)?,
-            has_cover: row.get::<_, i64>(10)? != 0,
-            has_lyrics: row.get::<_, i64>(11)? != 0,
-            has_metadata: row.get::<_, i64>(12)? != 0,
-            file_size: row.get(13)?,
-            added_at: row.get(14)?,
+    let raw_songs = {
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Song {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                title: row.get(2)?,
+                artist: row.get(3)?,
+                album: row.get(4)?,
+                album_artist: row.get(5)?,
+                track_number: row.get(6)?,
+                duration_secs: row.get(7)?,
+                year: row.get(8)?,
+                genre: row.get(9)?,
+                has_cover: row.get::<_, i64>(10)? != 0,
+                has_lyrics: row.get::<_, i64>(11)? != 0,
+                has_metadata: row.get::<_, i64>(12)? != 0,
+                file_size: row.get(13)?,
+                added_at: row.get(14)?,
+            })
         })
-    })
-    .map_err(|e| e.to_string())?
-    .filter_map(|r| r.ok())
-    .collect::<Vec<_>>();
+        .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
+    };
 
-    Ok(songs)
+    Ok(prune_missing_songs(&mut conn, raw_songs))
 }
 
 #[tauri::command]
 pub async fn search_songs(query: String, state: State<'_, DbState>) -> Result<Vec<Song>, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut conn = state.0.lock().map_err(|e| e.to_string())?;
     let pattern = format!("%{}%", query);
 
-    let mut stmt = conn.prepare(
-        "SELECT id, path, title, artist, album, album_artist, track_number,
-                duration_secs, year, genre, has_cover, has_lyrics, has_metadata, file_size, added_at
-         FROM songs
-         WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
-         ORDER BY title COLLATE NOCASE ASC",
-    ).map_err(|e| e.to_string())?;
+    let raw_songs = {
+        let mut stmt = conn.prepare(
+            "SELECT id, path, title, artist, album, album_artist, track_number,
+                    duration_secs, year, genre, has_cover, has_lyrics, has_metadata, file_size, added_at
+             FROM songs
+             WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
+             ORDER BY title COLLATE NOCASE ASC",
+        ).map_err(|e| e.to_string())?;
 
-    let songs = stmt.query_map(params![pattern], |row| {
-        Ok(Song {
-            id: row.get(0)?,
-            path: row.get(1)?,
-            title: row.get(2)?,
-            artist: row.get(3)?,
-            album: row.get(4)?,
-            album_artist: row.get(5)?,
-            track_number: row.get(6)?,
-            duration_secs: row.get(7)?,
-            year: row.get(8)?,
-            genre: row.get(9)?,
-            has_cover: row.get::<_, i64>(10)? != 0,
-            has_lyrics: row.get::<_, i64>(11)? != 0,
-            has_metadata: row.get::<_, i64>(12)? != 0,
-            file_size: row.get(13)?,
-            added_at: row.get(14)?,
+        let rows = stmt.query_map(params![pattern], |row| {
+            Ok(Song {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                title: row.get(2)?,
+                artist: row.get(3)?,
+                album: row.get(4)?,
+                album_artist: row.get(5)?,
+                track_number: row.get(6)?,
+                duration_secs: row.get(7)?,
+                year: row.get(8)?,
+                genre: row.get(9)?,
+                has_cover: row.get::<_, i64>(10)? != 0,
+                has_lyrics: row.get::<_, i64>(11)? != 0,
+                has_metadata: row.get::<_, i64>(12)? != 0,
+                file_size: row.get(13)?,
+                added_at: row.get(14)?,
+            })
         })
-    })
-    .map_err(|e| e.to_string())?
-    .filter_map(|r| r.ok())
-    .collect::<Vec<_>>();
+        .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
+    };
 
-    Ok(songs)
+    Ok(prune_missing_songs(&mut conn, raw_songs))
 }
 
 #[tauri::command]
@@ -277,41 +310,42 @@ pub async fn get_playlist_songs(
     playlist_id: i64,
     state: State<'_, DbState>,
 ) -> Result<Vec<Song>, String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare(
-        "SELECT s.id, s.path, s.title, s.artist, s.album, s.album_artist,
-                s.track_number, s.duration_secs, s.year, s.genre,
-                s.has_cover, s.has_lyrics, s.has_metadata, s.file_size, s.added_at
-         FROM songs s
-         JOIN playlist_songs ps ON s.id = ps.song_id
-         WHERE ps.playlist_id = ?1
-         ORDER BY ps.position ASC",
-    ).map_err(|e| e.to_string())?;
+    let mut conn = state.0.lock().map_err(|e| e.to_string())?;
+    let raw_songs = {
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.path, s.title, s.artist, s.album, s.album_artist,
+                    s.track_number, s.duration_secs, s.year, s.genre,
+                    s.has_cover, s.has_lyrics, s.has_metadata, s.file_size, s.added_at
+             FROM songs s
+             JOIN playlist_songs ps ON s.id = ps.song_id
+             WHERE ps.playlist_id = ?1
+             ORDER BY ps.position ASC",
+        ).map_err(|e| e.to_string())?;
 
-    let songs = stmt.query_map(params![playlist_id], |row| {
-        Ok(Song {
-            id: row.get(0)?,
-            path: row.get(1)?,
-            title: row.get(2)?,
-            artist: row.get(3)?,
-            album: row.get(4)?,
-            album_artist: row.get(5)?,
-            track_number: row.get(6)?,
-            duration_secs: row.get(7)?,
-            year: row.get(8)?,
-            genre: row.get(9)?,
-            has_cover: row.get::<_, i64>(10)? != 0,
-            has_lyrics: row.get::<_, i64>(11)? != 0,
-            has_metadata: row.get::<_, i64>(12)? != 0,
-            file_size: row.get(13)?,
-            added_at: row.get(14)?,
+        let rows = stmt.query_map(params![playlist_id], |row| {
+            Ok(Song {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                title: row.get(2)?,
+                artist: row.get(3)?,
+                album: row.get(4)?,
+                album_artist: row.get(5)?,
+                track_number: row.get(6)?,
+                duration_secs: row.get(7)?,
+                year: row.get(8)?,
+                genre: row.get(9)?,
+                has_cover: row.get::<_, i64>(10)? != 0,
+                has_lyrics: row.get::<_, i64>(11)? != 0,
+                has_metadata: row.get::<_, i64>(12)? != 0,
+                file_size: row.get(13)?,
+                added_at: row.get(14)?,
+            })
         })
-    })
-    .map_err(|e| e.to_string())?
-    .filter_map(|r| r.ok())
-    .collect::<Vec<_>>();
+        .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
+    };
 
-    Ok(songs)
+    Ok(prune_missing_songs(&mut conn, raw_songs))
 }
 
 #[tauri::command]
@@ -352,6 +386,7 @@ pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
 pub async fn read_audio_file(
     path: String,
     is_pure_audio: Option<bool>,
+    state: State<'_, DbState>,
 ) -> Result<tauri::ipc::Response, String> {
     if path.is_empty() {
         return Err("Audio path is empty".into());
@@ -360,12 +395,17 @@ pub async fn read_audio_file(
     let pure_audio_hint = is_pure_audio.unwrap_or(false);
     let path_clone = path.clone();
 
-    AUDIO_IO_POOL
+    let res = AUDIO_IO_POOL
         .spawn_blocking(move || {
-            let file = File::open(&path_clone)
-                .map_err(|e| format!("Failed to open file: {}", e))?;
+            let file = match File::open(&path_clone) {
+                Ok(f) => f,
+                Err(e) => {
+                    let is_not_found = e.kind() == std::io::ErrorKind::NotFound;
+                    return Err((is_not_found, format!("Failed to open file: {}", e)));
+                }
+            };
             let metadata = file.metadata()
-                .map_err(|e| format!("Metadata error: {}", e))?;
+                .map_err(|e| (false, format!("Metadata error: {}", e)))?;
             let size = metadata.len() as usize;
 
             // Read a small magic header to verify actual file type
@@ -375,7 +415,7 @@ pub async fn read_audio_file(
 
             // Reset reader to start of file
             reader.seek(SeekFrom::Start(0))
-                .map_err(|e| format!("Seek error: {}", e))?;
+                .map_err(|e| (false, format!("Seek error: {}", e)))?;
 
             // Detect if this is truly a raw MPEG frame (pure MP3):
             // Byte 0 = 0xFF, top 3 bits of byte 1 = 111 (MPEG sync word)
@@ -390,7 +430,7 @@ pub async fn read_audio_file(
             if pure_audio_hint && is_mpeg_sync {
                 let mut buffer = Vec::with_capacity(size);
                 reader.read_to_end(&mut buffer)
-                    .map_err(|e| format!("[PureAudio] Failed to read audio: {}", e))?;
+                    .map_err(|e| (false, format!("[PureAudio] Failed to read audio: {}", e)))?;
                 // Genuine raw MPEG stream — no fMP4 check needed, safe to return directly
                 return Ok(tauri::ipc::Response::new(buffer));
             }
@@ -398,7 +438,7 @@ pub async fn read_audio_file(
             // Standard path: read full file then run fMP4 detection + remux if needed
             let mut buffer = Vec::with_capacity(size);
             reader.read_to_end(&mut buffer)
-                .map_err(|e| format!("Failed to read audio: {}", e))?;
+                .map_err(|e| (false, format!("Failed to read audio: {}", e)))?;
 
             // If the audio file is a fragmented DASH MP4, unfragment/remux it so GStreamer plays it smoothly
             let buffer = scanner::get_or_remux_fragmented_mp4(&path_clone, buffer);
@@ -407,5 +447,95 @@ pub async fn read_audio_file(
             Ok(tauri::ipc::Response::new(final_buffer))
         })
         .await
-        .map_err(|e| format!("Audio task execution error: {}", e))?
+        .map_err(|e| format!("Audio task execution error: {}", e))?;
+
+    match res {
+        Ok(resp) => Ok(resp),
+        Err((is_not_found, err_msg)) => {
+            if is_not_found {
+                if let Ok(conn) = state.0.lock() {
+                    let _ = conn.execute("DELETE FROM playlist_songs WHERE song_id IN (SELECT id FROM songs WHERE path = ?1)", params![path]);
+                    let _ = conn.execute("DELETE FROM songs WHERE path = ?1", params![path]);
+                }
+            }
+            Err(err_msg)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::initialize_db;
+    use std::io::Write;
+
+    #[test]
+    fn test_prune_missing_songs() {
+        let temp_dir = std::env::temp_dir().join(format!("test_prune_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let real_file = temp_dir.join("exists.mp3");
+        {
+            let mut f = File::create(&real_file).unwrap();
+            f.write_all(b"exists").unwrap();
+        }
+        let missing_file = temp_dir.join("missing.mp3");
+
+        let db_path = temp_dir.join("test.db");
+        initialize_db(&db_path).unwrap();
+        let mut conn = rusqlite::Connection::open(&db_path).unwrap();
+
+        conn.execute("INSERT INTO songs (path, title) VALUES (?1, ?2)", params![real_file.to_str().unwrap(), "Real Song"]).unwrap();
+        let real_id = conn.last_insert_rowid();
+
+        conn.execute("INSERT INTO songs (path, title) VALUES (?1, ?2)", params![missing_file.to_str().unwrap(), "Missing Song"]).unwrap();
+        let missing_id = conn.last_insert_rowid();
+
+        let raw_songs = vec![
+            Song {
+                id: real_id,
+                path: real_file.to_str().unwrap().to_string(),
+                title: "Real Song".to_string(),
+                artist: None,
+                album: None,
+                album_artist: None,
+                track_number: None,
+                duration_secs: None,
+                year: None,
+                genre: None,
+                has_cover: false,
+                has_lyrics: false,
+                has_metadata: true,
+                file_size: None,
+                added_at: 0,
+            },
+            Song {
+                id: missing_id,
+                path: missing_file.to_str().unwrap().to_string(),
+                title: "Missing Song".to_string(),
+                artist: None,
+                album: None,
+                album_artist: None,
+                track_number: None,
+                duration_secs: None,
+                year: None,
+                genre: None,
+                has_cover: false,
+                has_lyrics: false,
+                has_metadata: true,
+                file_size: None,
+                added_at: 0,
+            },
+        ];
+
+        let pruned = prune_missing_songs(&mut conn, raw_songs);
+        assert_eq!(pruned.len(), 1);
+        assert_eq!(pruned[0].id, real_id);
+
+        // Verify missing song was deleted from DB
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM songs WHERE id = ?1", params![missing_id], |r| r.get(0)).unwrap();
+        assert_eq!(count, 0);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }

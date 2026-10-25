@@ -104,6 +104,7 @@ export default function App() {
   // Progressive Directory Scanning Listeners (PRD 3.B: Lazy Loading / Progressive Rendering)
   useEffect(() => {
     let unlistenBatch = null;
+    let unlistenDeleted = null;
     let unlistenProgress = null;
     let unlistenComplete = null;
 
@@ -114,6 +115,12 @@ export default function App() {
         unlistenBatch = await listen('scan-batch', (event) => {
           if (Array.isArray(event.payload) && event.payload.length > 0) {
             usePlayerStore.getState().appendSongsBatch(event.payload);
+          }
+        });
+
+        unlistenDeleted = await listen('scan-deleted', (event) => {
+          if (Array.isArray(event.payload) && event.payload.length > 0) {
+            usePlayerStore.getState().removeSongsBatch(event.payload);
           }
         });
 
@@ -144,6 +151,7 @@ export default function App() {
 
     return () => {
       if (unlistenBatch) unlistenBatch();
+      if (unlistenDeleted) unlistenDeleted();
       if (unlistenProgress) unlistenProgress();
       if (unlistenComplete) unlistenComplete();
     };

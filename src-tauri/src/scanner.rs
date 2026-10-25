@@ -71,6 +71,16 @@ pub async fn scan_dir_progressive(
     .await
     .map_err(|e| format!("Failed to walk directory: {}", e))?;
 
+    // Synchronize SQLite: Purge any deleted, replaced, or non-existent songs
+    let deleted_ids = {
+        let mut conn = db_state.0.lock().map_err(|e| e.to_string())?;
+        clean_missing_and_deleted_songs(&mut conn, dir_path, &file_paths)?
+    };
+
+    if !deleted_ids.is_empty() {
+        let _ = app.emit("scan-deleted", &deleted_ids);
+    }
+
     let mut batch: Vec<ExtractedSong> = Vec::with_capacity(BATCH_SIZE);
     let mut total_count = 0usize;
 
@@ -202,6 +212,88 @@ fn insert_batch_and_query(
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(result)
+}
+
+/// Synchronize SQLite database with the current files in the scanned directory.
+/// Deletes rows from `songs` (and `playlist_songs`) if:
+/// 1. The file was in `scanned_dir` previously, but is no longer found in `scanned_file_paths` (deleted/replaced).
+/// 2. The file path recorded in the DB does not exist on disk anywhere.
+pub fn clean_missing_and_deleted_songs(
+    conn: &mut rusqlite::Connection,
+    scanned_dir: &str,
+    scanned_file_paths: &[std::path::PathBuf],
+) -> Result<Vec<i64>, String> {
+    let scanned_dir_path = std::path::PathBuf::from(scanned_dir);
+    let scanned_dir_canon = scanned_dir_path.canonicalize().unwrap_or_else(|_| scanned_dir_path.clone());
+
+    let mut found_str_set = std::collections::HashSet::new();
+    let mut found_canon_set = std::collections::HashSet::new();
+    for p in scanned_file_paths {
+        found_str_set.insert(p.to_string_lossy().to_string());
+        if let Ok(c) = p.canonicalize() {
+            found_canon_set.insert(c);
+        }
+    }
+
+    let existing_songs = {
+        let mut stmt = conn
+            .prepare("SELECT id, path FROM songs")
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+
+        rows.filter_map(|r| r.ok()).collect::<Vec<_>>()
+    };
+
+    let mut to_delete_ids = Vec::new();
+
+    for (id, path_str) in existing_songs {
+        let p = std::path::PathBuf::from(&path_str);
+        let exists = p.is_file();
+
+        if !exists {
+            to_delete_ids.push(id);
+            continue;
+        }
+
+        let is_in_scanned_dir = if let Ok(p_canon) = p.canonicalize() {
+            p_canon.starts_with(&scanned_dir_canon)
+        } else {
+            p.starts_with(&scanned_dir_path)
+        };
+
+        if is_in_scanned_dir {
+            let is_found = found_str_set.contains(&path_str)
+                || p.canonicalize().map(|c| found_canon_set.contains(&c)).unwrap_or(false);
+
+            if !is_found {
+                to_delete_ids.push(id);
+            }
+        }
+    }
+
+    if !to_delete_ids.is_empty() {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        {
+            let mut del_playlist_stmt = tx
+                .prepare("DELETE FROM playlist_songs WHERE song_id = ?1")
+                .map_err(|e| e.to_string())?;
+            let mut del_song_stmt = tx
+                .prepare("DELETE FROM songs WHERE id = ?1")
+                .map_err(|e| e.to_string())?;
+
+            for id in &to_delete_ids {
+                let _ = del_playlist_stmt.execute(params![id]);
+                let _ = del_song_stmt.execute(params![id]);
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+
+    Ok(to_delete_ids)
 }
 
 /// Check if a file starts with an ID3v2 header (first 3 bytes == b"ID3")
@@ -847,6 +939,68 @@ mod tests {
             // Must be remuxed into an Ogg container (starts with 'OggS')
             assert!(remuxed.starts_with(b"OggS"));
         }
+    }
+
+    #[test]
+    fn test_clean_missing_and_deleted_songs() {
+        use crate::db::initialize_db;
+        use std::io::Write;
+
+        let temp_dir = std::env::temp_dir().join(format!("test_music_folder_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let old_song_path = temp_dir.join("old_song.mp3");
+        let kept_song_path = temp_dir.join("kept_song.mp3");
+        let new_song_path = temp_dir.join("new_song.mp3");
+
+        {
+            let mut f = File::create(&old_song_path).unwrap();
+            f.write_all(b"dummy audio 1").unwrap();
+        }
+        {
+            let mut f = File::create(&kept_song_path).unwrap();
+            f.write_all(b"dummy audio 2").unwrap();
+        }
+
+        // Initialize SQLite db
+        let db_path = temp_dir.join("test.db");
+        initialize_db(&db_path).unwrap();
+        let mut conn = rusqlite::Connection::open(&db_path).unwrap();
+
+        // Insert old_song and kept_song
+        conn.execute(
+            "INSERT INTO songs (path, title) VALUES (?1, ?2)",
+            params![old_song_path.to_str().unwrap(), "Old Song"],
+        ).unwrap();
+        let old_id = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO songs (path, title) VALUES (?1, ?2)",
+            params![kept_song_path.to_str().unwrap(), "Kept Song"],
+        ).unwrap();
+
+        // Simulate user deleting old_song.mp3 from disk and adding new_song.mp3
+        std::fs::remove_file(&old_song_path).unwrap();
+        {
+            let mut f = File::create(&new_song_path).unwrap();
+            f.write_all(b"dummy audio 3").unwrap();
+        }
+
+        // Current files found in directory during rescan:
+        let scanned_files = vec![kept_song_path.clone(), new_song_path.clone()];
+
+        // Clean missing & deleted songs
+        let deleted = clean_missing_and_deleted_songs(&mut conn, temp_dir.to_str().unwrap(), &scanned_files).unwrap();
+
+        // Old song should have been deleted!
+        assert_eq!(deleted, vec![old_id]);
+
+        // Verify SQLite now has only kept_song
+        let mut stmt = conn.prepare("SELECT title FROM songs").unwrap();
+        let remaining: Vec<String> = stmt.query_map([], |row| row.get(0)).unwrap().filter_map(|r| r.ok()).collect();
+        assert_eq!(remaining, vec!["Kept Song".to_string()]);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
 

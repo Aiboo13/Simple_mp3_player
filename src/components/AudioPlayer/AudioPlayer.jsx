@@ -386,8 +386,22 @@ export default function AudioPlayer() {
       } catch (err) {
         if (seq !== transitionSeqRef.current) return;
         console.error('[AudioPlayer] Strict transition failed:', err);
-        showToast('Playback error: ' + (err.message || err), 'error');
-        setIsPlaying(false);
+        const errStr = String(err?.message || err || '');
+        const isNotFound = errStr.includes('No such file') || errStr.includes('not found') || errStr.includes('Failed to open file');
+
+        if (isNotFound && currentSong) {
+          showToast(`File tidak ditemukan: ${currentSong.title}. Dihapus dari pustaka.`, 'error');
+          usePlayerStore.getState().removeSongById(currentSong.id);
+          const state = usePlayerStore.getState();
+          if (state.queue.length > 0) {
+            state.playNextSong(false);
+          } else {
+            setIsPlaying(false);
+          }
+        } else {
+          showToast('Playback error: ' + (err.message || err), 'error');
+          setIsPlaying(false);
+        }
       } finally {
         if (seq === transitionSeqRef.current) {
           isTransitioningRef.current = false;

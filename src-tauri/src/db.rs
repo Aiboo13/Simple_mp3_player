@@ -7,6 +7,12 @@ pub struct DbState(pub Mutex<Connection>);
 impl DbState {
     pub fn new(db_path: PathBuf) -> Self {
         let conn = Connection::open(db_path).expect("Failed to open database");
+        conn.execute_batch("
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            PRAGMA busy_timeout = 5000;
+            PRAGMA foreign_keys = ON;
+        ").expect("Failed to initialize database connection pragmas");
         DbState(Mutex::new(conn))
     }
 }
