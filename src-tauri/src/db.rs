@@ -81,10 +81,19 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
         [],
     );
 
-    // Retroactively update legacy pure audio tracks to has_metadata = 0
+    // PRD v1.5 §1: Pure Audio is strictly raw .mp3 without ID3 headers.
+    // Non-mp3 formats (.m4a, .flac, .ogg, .wav) have structured container headers (ftyp, STREAMINFO)
+    // and must never be classified as pure audio.
+    let _ = conn.execute(
+        "UPDATE songs SET has_metadata = 1 WHERE path NOT LIKE '%.mp3' AND has_metadata = 0",
+        [],
+    );
+
+    // Retroactively update legacy pure audio .mp3 tracks to has_metadata = 0
     let _ = conn.execute(
         "UPDATE songs SET has_metadata = 0 
-         WHERE (artist IS NULL OR trim(artist) = '' OR lower(trim(artist)) = 'unknown') 
+         WHERE path LIKE '%.mp3'
+           AND (artist IS NULL OR trim(artist) = '' OR lower(trim(artist)) = 'unknown') 
            AND (album IS NULL OR trim(album) = '' OR lower(trim(album)) = 'unknown') 
            AND has_cover = 0 
            AND has_lyrics = 0",

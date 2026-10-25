@@ -51,9 +51,8 @@ const usePlayerStore = create((set, get) => ({
   setAudioElement: (audioElement) => set({ audioElement }),
   strictMuteSink: () => {
     const el = get().audioElement;
-    if (el) {
-      el.muted = true;
-      el.volume = 0;
+    if (el && !el.paused) {
+      el.pause();
     }
   },
 

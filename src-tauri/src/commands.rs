@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use rusqlite::params;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use crate::db::DbState;
 use crate::scanner;
@@ -338,23 +338,71 @@ pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
     .map_err(|e| format!("Task execution error: {}", e))?
 }
 
+/// PRD v1.5 §4.B §4.C: `is_pure_audio` flag allows the backend to take the fast-path for
+/// pure audio files (no ID3 header). When `true` AND the file genuinely starts with an MPEG
+/// sync word (0xFF 0xE?), any overhead is bypassed entirely, eliminating the 1-second stutter.
+///
+/// IMPORTANT: Some files have extension .mp3 but are actually MP4 containers (ftyp header).
+/// Those files must always go through the standard path with fMP4 remux detection, regardless
+/// of the `is_pure_audio` DB flag.
+///
+/// `Option<bool>` is the correct Tauri v2 pattern: when the JS caller sends `is_pure_audio: false`
+/// the value is `Some(false)`; when the key is omitted it is `None` (treated as false below).
 #[tauri::command]
-pub async fn read_audio_file(path: String) -> Result<Vec<u8>, String> {
+pub async fn read_audio_file(
+    path: String,
+    is_pure_audio: Option<bool>,
+) -> Result<Vec<u8>, String> {
     if path.is_empty() {
         return Err("Audio path is empty".into());
     }
 
+    let pure_audio_hint = is_pure_audio.unwrap_or(false);
+    let path_clone = path.clone();
+
     AUDIO_IO_POOL
         .spawn_blocking(move || {
-            let file = File::open(&path).map_err(|e| format!("Failed to open file: {}", e))?;
-            let metadata = file.metadata().map_err(|e| format!("Metadata error: {}", e))?;
+            let file = File::open(&path_clone)
+                .map_err(|e| format!("Failed to open file: {}", e))?;
+            let metadata = file.metadata()
+                .map_err(|e| format!("Metadata error: {}", e))?;
             let size = metadata.len() as usize;
 
-            // Use 256KB buffered reader for high throughput sequential read
+            // Read a small magic header to verify actual file type
             let mut reader = BufReader::with_capacity(256 * 1024, file);
+            let mut magic = [0u8; 8];
+            let magic_read = reader.read(&mut magic).unwrap_or(0);
+
+            // Reset reader to start of file
+            reader.seek(SeekFrom::Start(0))
+                .map_err(|e| format!("Seek error: {}", e))?;
+
+            // Detect if this is truly a raw MPEG frame (pure MP3):
+            // Byte 0 = 0xFF, top 3 bits of byte 1 = 111 (MPEG sync word)
+            // This excludes MP4 containers (ftyp at offset 4) disguised as .mp3
+            let is_mpeg_sync = magic_read >= 2
+                && magic[0] == 0xFF
+                && (magic[1] & 0xE0) == 0xE0;
+
+            // PRD v1.5 §4.B: True pure audio fast-path — only when:
+            // 1. Frontend signals is_pure_audio = true (from DB has_metadata = false), AND
+            // 2. File genuinely starts with MPEG sync word (not an MP4-in-MP3 disguise)
+            if pure_audio_hint && is_mpeg_sync {
+                let mut buffer = Vec::with_capacity(size);
+                reader.read_to_end(&mut buffer)
+                    .map_err(|e| format!("[PureAudio] Failed to read audio: {}", e))?;
+                // Genuine raw MPEG stream — no fMP4 check needed, safe to return directly
+                return Ok(buffer);
+            }
+
+            // Standard path: read full file then run fMP4 detection + remux if needed
             let mut buffer = Vec::with_capacity(size);
-            reader.read_to_end(&mut buffer).map_err(|e| format!("Failed to read audio: {}", e))?;
-            Ok(buffer)
+            reader.read_to_end(&mut buffer)
+                .map_err(|e| format!("Failed to read audio: {}", e))?;
+
+            // If the audio file is a fragmented DASH MP4, unfragment/remux it so GStreamer plays it smoothly
+            let final_buffer = scanner::get_or_remux_fragmented_mp4(&path_clone, buffer);
+            Ok(final_buffer)
         })
         .await
         .map_err(|e| format!("Audio task execution error: {}", e))?

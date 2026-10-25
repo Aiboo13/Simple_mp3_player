@@ -188,10 +188,16 @@ export function detectAudioMimeType(uint8Array, fallbackExt = '') {
 }
 
 /**
- * Read raw audio file bytes and return a native browser Blob URL
+ * Read raw audio file bytes and return a native browser Blob URL.
+ * PRD v1.5 §4.B: Pass `isPureAudio=true` for files without ID3 headers so the Rust backend
+ * takes the fast-path (no fMP4 detection, no metadata probe), eliminating the 1-second stutter.
+ *
+ * NOTE (Tauri v2): invoke() parameters must use snake_case to match Rust function signatures.
+ * `is_pure_audio` maps to `is_pure_audio: Option<bool>` in commands.rs.
  */
-export async function readAudioFile(path) {
-  const bytes = await invoke('read_audio_file', { path });
+export async function readAudioFile(path, isPureAudio = false) {
+  // Tauri v2 requires snake_case keys — camelCase is NOT auto-converted unlike Tauri v1
+  const bytes = await invoke('read_audio_file', { path, is_pure_audio: isPureAudio });
   const u8 = new Uint8Array(bytes);
   const ext = (path.split('.').pop() || '').toLowerCase();
   const type = detectAudioMimeType(u8, ext);

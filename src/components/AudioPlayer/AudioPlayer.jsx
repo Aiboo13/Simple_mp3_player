@@ -54,54 +54,6 @@ const IconRepeat = ({ mode }) => mode === 'one' ? (
   </svg>
 );
 
-// Helper to confirm decoder has stabilized and is rendering frames continuously (PRD v1.5 Req 4.A)
-function waitForDecoderStabilization(audio, targetSeq, isPure, transitionSeqRef) {
-  return new Promise((resolve) => {
-    if (targetSeq !== transitionSeqRef.current) {
-      resolve(false);
-      return;
-    }
-    if (audio.paused) {
-      resolve(true);
-      return;
-    }
-
-    // If audio has already started advancing frames, unmute immediately
-    if (audio.currentTime > 0 && !audio.paused && !audio.seeking) {
-      resolve(true);
-      return;
-    }
-
-    let resolved = false;
-    const cleanup = () => {
-      audio.removeEventListener('playing', onPlaying);
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      clearTimeout(failsafeTimer);
-    };
-
-    const done = (success) => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        resolve(success);
-      }
-    };
-
-    const onPlaying = () => done(true);
-    const onTimeUpdate = () => {
-      if (audio.currentTime > 0) done(true);
-    };
-
-    audio.addEventListener('playing', onPlaying, { once: true });
-    audio.addEventListener('timeupdate', onTimeUpdate, { once: true });
-
-    // Failsafe safety timeout (150ms) to ensure transition never indefinitely stays muted
-    // and eliminates the unnatural 1s skip / stutter
-    const failsafeTimer = setTimeout(() => {
-      done(true);
-    }, 150);
-  });
-}
 
 
 export default function AudioPlayer() {
@@ -132,7 +84,9 @@ export default function AudioPlayer() {
   const pendingLoadsRef = useRef(new Map()); // Map<path, Promise<string>>
 
   // Helper to load or fetch from cache
-  const getOrLoadBlob = useCallback(async (path) => {
+  // PRD v1.5 §4.B §4.C: Pass `isPureAudio` so Rust takes the fast-path (no metadata probe,
+  // no fMP4 scan) for pure audio files, eliminating the 1-second stutter on transition.
+  const getOrLoadBlob = useCallback(async (path, isPureAudio = false) => {
     if (!path) return null;
     if (blobCacheRef.current.has(path)) {
       return blobCacheRef.current.get(path);
@@ -143,14 +97,16 @@ export default function AudioPlayer() {
 
     const loadPromise = (async () => {
       try {
-        const blobUrl = await readAudioFile(path);
+        // PRD §4.B: isPureAudio=true triggers Rust fast-path (skip fMP4 check + no lofty probe)
+        const blobUrl = await readAudioFile(path, isPureAudio);
         blobCacheRef.current.set(path, blobUrl);
 
-        // Keep cache bounded to max 4 tracks (prev, current, next, etc.)
-        while (blobCacheRef.current.size > 4) {
+        // Keep cache bounded to max 6 tracks without ever evicting the active song or the song just loaded
+        const activeSongPath = usePlayerStore.getState().queue[usePlayerStore.getState().currentIndex]?.path;
+        while (blobCacheRef.current.size > 6) {
           let keyToEvict = null;
           for (const k of blobCacheRef.current.keys()) {
-            if (k !== currentSong?.path) {
+            if (k !== activeSongPath && k !== path) {
               keyToEvict = k;
               break;
             }
@@ -169,7 +125,7 @@ export default function AudioPlayer() {
 
     pendingLoadsRef.current.set(path, loadPromise);
     return loadPromise;
-  }, [currentSong?.path]);
+  }, []);
 
   // Register audio ref with store so skip actions can synchronously mute sink immediately
   useEffect(() => {
@@ -241,7 +197,9 @@ export default function AudioPlayer() {
     const timer = setTimeout(() => {
       const doPreload = () => {
         if (nextSong?.path && nextSong.path !== currentSong?.path) {
-          getOrLoadBlob(nextSong.path).catch((err) => {
+          // PRD §4.B §4.C: pass isPureAudio=true so pre-buffer also uses the fast-path
+          const nextIsPure = nextSong.has_metadata === false;
+          getOrLoadBlob(nextSong.path, nextIsPure).catch((err) => {
             console.warn('[AudioPlayer] Pre-buffering next track error:', err);
           });
 
@@ -257,7 +215,8 @@ export default function AudioPlayer() {
 
         // Also pre-buffer prevSong so PgUp transitions are instantaneous cache hits
         if (prevSong?.path && prevSong.path !== currentSong?.path && prevSong.path !== nextSong?.path) {
-          getOrLoadBlob(prevSong.path).catch(() => {});
+          const prevIsPure = prevSong.has_metadata === false;
+          getOrLoadBlob(prevSong.path, prevIsPure).catch(() => {});
         }
       };
 
@@ -317,18 +276,14 @@ export default function AudioPlayer() {
 
     const executeStrictTransition = async () => {
       try {
-        // ── Phase 1: Strict Mute on Transition (PRD v1.5 Req 4.A) ──
-        // Silence speaker immediately so no bleed or preview audio can escape
-        audio.muted = true;
-        audio.volume = 0;
+        // ── Phase 1: Stop previous audio immediately (PRD v1.5 Req 4.A) ──
+        // Ensure no audio from Lagu A bleeds into the transition.
+        // Pausing immediately silences the speaker safely without corrupting GStreamer's volume pipeline.
         if (!audio.paused) {
           audio.pause();
         }
 
-        // ── Phase 2: Flush/Kosongkan Audio Buffer ──
-        // Remove src and load() to completely discard decoder buffer & pipeline state
-        audio.removeAttribute('src');
-        audio.load();
+        // ── Phase 2: Reset playback position without tearing down WebKitGTK decoder ──
         audio.currentTime = 0;
         setCurrentTime(0);
         setDuration(0);
@@ -344,16 +299,23 @@ export default function AudioPlayer() {
           currentSong.title
         );
 
-        const blobUrl = await getOrLoadBlob(currentSong.path);
+        // PRD §4.B §4.C: Pass isPureAudio so Rust skips fMP4 check and lofty metadata probe
+        const blobUrl = await getOrLoadBlob(currentSong.path, isPureAudio);
         if (seq !== transitionSeqRef.current || !blobUrl) return;
 
-        audio.src = blobUrl;
-        audio.load();
+        if (audio.src !== blobUrl) {
+          audio.src = blobUrl;
+          audio.load();
+        }
 
-        // ── Phase 4: Tunggu hingga buffer awal Lagu B terisi ──
-        // Wait until HTMLMediaElement reaches HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4)
+        // ── Phase 4: Wait for initial buffer to fill (PRD v1.5 §4.A) ──
+        // When readyState >= 2 (HAVE_CURRENT_DATA) or on canplay/loadeddata, resolve immediately.
+        // Safety timeout (3500ms) guarantees we never hang on corrupt files while avoiding
+        // prematurely killing decoding for large or remuxed files.
+        const safetyTimeoutMs = 3500;
+
         await new Promise((resolve) => {
-          if (audio.readyState >= 3) {
+          if (audio.readyState >= 2) {
             resolve();
             return;
           }
@@ -364,6 +326,7 @@ export default function AudioPlayer() {
               done = true;
               audio.removeEventListener('canplay', finish);
               audio.removeEventListener('canplaythrough', finish);
+              audio.removeEventListener('loadeddata', finish);
               audio.removeEventListener('error', finish);
               resolve();
             }
@@ -371,10 +334,10 @@ export default function AudioPlayer() {
 
           audio.addEventListener('canplay', finish, { once: true });
           audio.addEventListener('canplaythrough', finish, { once: true });
+          audio.addEventListener('loadeddata', finish, { once: true });
           audio.addEventListener('error', finish, { once: true });
 
-          // Safety fallback timeout (1200ms) to ensure transition never hangs
-          setTimeout(finish, 1200);
+          setTimeout(finish, safetyTimeoutMs);
         });
 
         if (seq !== transitionSeqRef.current) return;
@@ -385,7 +348,22 @@ export default function AudioPlayer() {
           setDuration(currentSong.duration_secs);
         }
 
-        // ── Phase 5: Play (Lagu B) & Decoder Stabilization (PRD v1.5 Req 4.A) ──
+        // ── Phase 4.5: Decoder Stabilization (PRD v1.5 §4.A) ──
+        // For pure audio files, add a brief stabilization window (40ms) before playback.
+        // This ensures the decoder has fully committed to the first continuous audio frames
+        // and prevents any raw MPEG sync-word frames from leaking to the speaker (audio spill).
+        if (isPureAudio) {
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          if (seq !== transitionSeqRef.current) return;
+        }
+
+        // Restore user's actual volume & mute settings now that buffer is fully ready
+        const currentMuted = usePlayerStore.getState().isMuted;
+        const currentVol = usePlayerStore.getState().volume;
+        audio.muted = currentMuted;
+        audio.volume = currentMuted ? 0 : currentVol;
+
+        // ── Phase 5: Play (Lagu B) ──
         const shouldPlay = usePlayerStore.getState().isPlaying;
         if (shouldPlay) {
           try {
@@ -393,29 +371,18 @@ export default function AudioPlayer() {
             if (playPromise !== undefined) {
               await playPromise;
             }
+            // Guard against WebKitGTK/GStreamer pipeline resetting volume to 0 asynchronously
+            if (!usePlayerStore.getState().isMuted && audio.volume === 0 && currentVol > 0) {
+              audio.volume = currentVol;
+              audio.muted = false;
+            }
           } catch (playErr) {
             if (seq !== transitionSeqRef.current) return;
             if (playErr.name !== 'AbortError') {
               console.warn('[AudioPlayer] audio.play() rejected:', playErr);
-              setIsPlaying(false);
-              return;
             }
           }
         }
-
-        if (seq !== transitionSeqRef.current) return;
-
-        // Strict Unmute Condition: Sink is ONLY unmuted after decoder confirms stable continuous playback
-        if (shouldPlay && !audio.paused) {
-          const isStable = await waitForDecoderStabilization(audio, seq, isPureAudio, transitionSeqRef);
-          if (seq !== transitionSeqRef.current || !isStable) return;
-        }
-
-        // Restore user's actual volume & mute settings now that audio is confirmed stably rendering
-        const currentMuted = usePlayerStore.getState().isMuted;
-        const currentVol = usePlayerStore.getState().volume;
-        audio.muted = currentMuted;
-        audio.volume = currentMuted ? 0 : currentVol;
       } catch (err) {
         if (seq !== transitionSeqRef.current) return;
         console.error('[AudioPlayer] Strict transition failed:', err);
@@ -440,8 +407,11 @@ export default function AudioPlayer() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong || !audio.src) return;
+    // Prevent collision with in-progress transition
+    if (isTransitioningRef.current) return;
+
     if (isPlaying) {
-      if (audio.paused && !isTransitioningRef.current) {
+      if (audio.paused) {
         const p = audio.play();
         if (p !== undefined) {
           p.catch((err) => {
@@ -463,10 +433,8 @@ export default function AudioPlayer() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (!isTransitioningRef.current) {
-      audio.volume = isMuted ? 0 : volume;
-      audio.muted = isMuted;
-    }
+    audio.volume = isMuted ? 0 : volume;
+    audio.muted = isMuted;
   }, [volume, isMuted]);
 
   // ── Handle external seek requests (e.g. clicking lyrics line) ─
@@ -480,8 +448,28 @@ export default function AudioPlayer() {
 
   // ── Audio event handlers ─────────────────────────────────────
   function handlePlay() {
+    const audio = audioRef.current;
+    if (audio) {
+      const { volume: storeVol, isMuted: storeMuted } = usePlayerStore.getState();
+      if (audio.muted !== storeMuted) audio.muted = storeMuted;
+      const target = storeMuted ? 0 : storeVol;
+      if (Math.abs(audio.volume - target) > 0.01) {
+        audio.volume = target;
+      }
+    }
     if (!isTransitioningRef.current) {
       setIsPlaying(true);
+    }
+  }
+
+  function handleAudioVolumeChange() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const { volume: storeVol, isMuted: storeMuted } = usePlayerStore.getState();
+    // Guard against WebKitGTK/GStreamer pipeline resetting volume to 0 asynchronously
+    if (!storeMuted && storeVol > 0 && audio.volume === 0) {
+      audio.volume = storeVol;
+      audio.muted = false;
     }
   }
 
@@ -516,6 +504,7 @@ export default function AudioPlayer() {
   function handleAudioError() {
     const audio = audioRef.current;
     if (!audio || !currentSong || isTransitioningRef.current) return;
+    if (!audio.src || audio.src === window.location.href) return;
 
     const error = audio.error;
     console.error('[AudioPlayer] HTML5 Audio error:', error, audio.src);
@@ -570,6 +559,7 @@ export default function AudioPlayer() {
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
         onError={handleAudioError}
+        onVolumeChange={handleAudioVolumeChange}
         preload="auto"
       />
 

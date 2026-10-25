@@ -232,6 +232,82 @@ pub fn check_has_id3_or_mp4_header(path: &Path) -> bool {
     }
 }
 
+/// Check if a byte slice corresponds to a fragmented MP4 / DASH audio file (fMP4).
+/// Fragmented MP4 files contain 'ftyp' at offset 4 followed by 'dash', 'sidx', or 'moof' atoms.
+/// In WebKitGTK / GStreamer push mode (Blobs), 'sidx' segment boundaries cause premature EOS
+/// signals, causing discontinuous skips and jumps in audio while the playback clock continues.
+pub fn is_fragmented_mp4(data: &[u8]) -> bool {
+    if data.len() < 16 || &data[4..8] != b"ftyp" {
+        return false;
+    }
+    let inspect_len = data.len().min(4096);
+    let sample = &data[..inspect_len];
+    sample.windows(4).any(|w| w == b"dash" || w == b"sidx" || w == b"moof")
+}
+
+/// If the audio file is a fragmented MP4 / DASH container, remux it into a standard,
+/// unfragmented MP4 container (moov at start + contiguous mdat) using fast stream copy (`-c copy`).
+/// Results are cached in the temp directory so the remux operation (~80ms) occurs only once per track.
+pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> Vec<u8> {
+    if !is_fragmented_mp4(&original_bytes) {
+        return original_bytes;
+    }
+
+    let p = Path::new(path_str);
+    let file_stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("audio");
+    let file_size = p.metadata().map(|m| m.len()).unwrap_or(original_bytes.len() as u64);
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(&path_str, &mut hasher);
+    std::hash::Hash::hash(&file_size, &mut hasher);
+    let path_hash = std::hash::Hasher::finish(&hasher);
+
+    let cache_dir = std::env::temp_dir().join("mp3_player_lokal_cache");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let cached_path = cache_dir.join(format!("{}_{:x}_unfrag.m4a", file_stem, path_hash));
+
+    // Fast-path: Return cached unfragmented file if already generated
+    if let Ok(meta) = cached_path.metadata() {
+        if meta.len() > 0 {
+            if let Ok(cached_bytes) = std::fs::read(&cached_path) {
+                if !cached_bytes.is_empty() {
+                    return cached_bytes;
+                }
+            }
+        }
+    }
+
+    // Remux using ffmpeg stream copy: -c copy -movflags +faststart
+    // This removes sidx/moof fragment boundaries and creates a standard continuous container.
+    let remux_status = std::process::Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-v",
+            "error",
+            "-i",
+            path_str,
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            cached_path.to_str().unwrap_or(""),
+        ])
+        .output();
+
+    if let Ok(output) = remux_status {
+        if output.status.success() {
+            if let Ok(remuxed_bytes) = std::fs::read(&cached_path) {
+                if !remuxed_bytes.is_empty() {
+                    return remuxed_bytes;
+                }
+            }
+        }
+    }
+
+    // Fallback: return original bytes if ffmpeg is unavailable or fails
+    original_bytes
+}
+
 
 /// Fast duration estimation for pure MP3 without scanning the full file.
 /// Parses the first valid MPEG frame header within the first 4KB to read bitrate.
@@ -370,7 +446,14 @@ fn extract_metadata(path: &Path) -> ExtractedSong {
     let duration_secs = if duration_secs > 0.0 { Some(duration_secs) } else { None };
 
     let has_lyrics = has_lrc || has_tag_lyrics;
-    let has_metadata = has_tag_meta || has_lrc;
+    // PRD v1.5 §1: Only genuine raw .mp3 files without ID3 or MP4 container headers can be pure audio.
+    // Container formats (.m4a, .flac, .ogg, .wav) and MP4-disguised-as-.mp3 always require standard handling.
+    let is_raw_mp3_candidate = ext == "mp3" && !check_has_id3_or_mp4_header(path);
+    let has_metadata = if !is_raw_mp3_candidate {
+        true
+    } else {
+        has_tag_meta || has_lrc
+    };
 
     ExtractedSong {
         path: path_str,
@@ -626,6 +709,47 @@ mod tests {
 
         let _ = std::fs::remove_file(pure_path);
         let _ = std::fs::remove_file(mp4_path);
+    }
+
+    #[test]
+    fn test_fragmented_mp4_detection() {
+        // Standard M4A header: size 24, 'ftyp', 'M4A '
+        let standard_m4a = vec![
+            0x00, 0x00, 0x00, 0x18, b'f', b't', b'y', b'p',
+            b'M', b'4', b'A', b' ', 0x00, 0x00, 0x00, 0x00,
+        ];
+        assert!(!is_fragmented_mp4(&standard_m4a));
+
+        // Fragmented DASH header: size 24, 'ftyp', 'dash'
+        let dash_fmp4 = vec![
+            0x00, 0x00, 0x00, 0x18, b'f', b't', b'y', b'p',
+            b'd', b'a', b's', b'h', 0x00, 0x00, 0x00, 0x00,
+        ];
+        assert!(is_fragmented_mp4(&dash_fmp4));
+
+        // MP4 with sidx box inside header
+        let mut sidx_fmp4 = standard_m4a.clone();
+        sidx_fmp4.extend_from_slice(b"....sidx....");
+        assert!(is_fragmented_mp4(&sidx_fmp4));
+
+        // Non-mp4 (MP3)
+        let mp3_bytes = vec![0xFF, 0xFB, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00];
+        assert!(!is_fragmented_mp4(&mp3_bytes));
+
+        // Non-fragmented input should return unchanged
+        let non_fmp4_result = get_or_remux_fragmented_mp4("mock.mp3", mp3_bytes.clone());
+        assert_eq!(non_fmp4_result, mp3_bytes);
+
+        // Real fragmented file test if present in user's Music directory
+        let real_dash_path = "/home/sah/Music/Up.mp3";
+        if std::path::Path::new(real_dash_path).is_file() {
+            let original = std::fs::read(real_dash_path).unwrap();
+            assert!(is_fragmented_mp4(&original));
+            let remuxed = get_or_remux_fragmented_mp4(real_dash_path, original.clone());
+            assert!(!remuxed.is_empty());
+            // Remuxed output must NO LONGER be fragmented
+            assert!(!is_fragmented_mp4(&remuxed));
+        }
     }
 }
 
