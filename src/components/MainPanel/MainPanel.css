@@ -402,36 +402,78 @@
 }
 .song-row.current:hover { background: #f0c000; }
 
-/* Selected state (Single click highlight - PRD v1.2) */
+.song-selection-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-clear-selection {
+  padding: 1px 6px;
+  font-size: 11px;
+  height: 20px;
+  line-height: 1;
+  background: var(--surface-panel);
+  border: 1px solid var(--clr-black);
+  cursor: pointer;
+  box-shadow: 1px 1px 0 var(--clr-black);
+}
+
+.btn-clear-selection:hover {
+  background: var(--clr-red);
+  color: var(--clr-white);
+  border-color: var(--clr-black);
+}
+
+#batch-playlist-btn {
+  font-weight: 700;
+  border: 2px solid var(--clr-black);
+  box-shadow: 2px 2px 0 var(--clr-black);
+}
+
+#batch-playlist-btn:hover {
+  box-shadow: 3px 3px 0 var(--clr-black);
+  transform: translate(-1px, -1px);
+}
+
+/* Selected state (Multi-Select & Single-Select - PRD v1.6 Neo-Brutalism) */
 .song-row.selected {
-  background: rgba(232, 41, 26, 0.08);
-  box-shadow: inset 4px 0 0 var(--clr-red);
+  background: rgba(232, 41, 26, 0.12);
+  box-shadow: inset 5px 0 0 var(--clr-red);
+  outline: 1px solid rgba(232, 41, 26, 0.3);
+  outline-offset: -1px;
 }
 .song-row.selected:hover {
-  background: rgba(232, 41, 26, 0.14);
+  background: rgba(232, 41, 26, 0.2);
 }
 .song-row.current.selected {
   background: var(--clr-yellow);
-  box-shadow: inset 4px 0 0 var(--clr-red);
+  box-shadow: inset 5px 0 0 var(--clr-red);
+  outline: 1px solid var(--clr-red);
+  outline-offset: -1px;
 }
 .song-row.current.selected:hover {
   background: #f0c000;
 }
 
 [data-theme="bw"] .song-row.selected {
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 4px 0 0 #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 5px 0 0 #ffffff;
+  outline: 1px solid #ffffff;
+  outline-offset: -1px;
 }
 [data-theme="bw"] .song-row.selected:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.26);
 }
 
 [data-theme="darkweb"] .song-row.selected {
-  background: rgba(0, 255, 102, 0.12);
-  box-shadow: inset 4px 0 0 #00ff66;
+  background: rgba(0, 255, 102, 0.18);
+  box-shadow: inset 5px 0 0 #00ff66, 0 0 10px rgba(0, 255, 102, 0.15);
+  outline: 1px solid rgba(0, 255, 102, 0.4);
+  outline-offset: -1px;
 }
 [data-theme="darkweb"] .song-row.selected:hover {
-  background: rgba(0, 255, 102, 0.2);
+  background: rgba(0, 255, 102, 0.28);
 }
 
 .song-row-num {

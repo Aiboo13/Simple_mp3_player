@@ -253,8 +253,12 @@ pub async fn get_playlists(state: State<'_, DbState>) -> Result<Vec<Playlist>, S
 
 #[tauri::command]
 pub async fn create_playlist(name: String, state: State<'_, DbState>) -> Result<i64, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Playlist name cannot be empty".into());
+    }
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    conn.execute("INSERT INTO playlists (name) VALUES (?1)", params![name])
+    conn.execute("INSERT INTO playlists (name) VALUES (?1)", params![trimmed])
         .map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
 }
@@ -267,14 +271,17 @@ pub async fn delete_playlist(id: i64, state: State<'_, DbState>) -> Result<(), S
     Ok(())
 }
 
-#[tauri::command]
-pub async fn add_songs_to_playlist(
+pub fn add_songs_to_playlist_internal(
+    conn: &mut rusqlite::Connection,
     playlist_id: i64,
-    song_ids: Vec<i64>,
-    state: State<'_, DbState>,
+    song_ids: &[i64],
 ) -> Result<(), String> {
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let max_pos: i64 = conn
+    if song_ids.is_empty() {
+        return Ok(());
+    }
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let max_pos: i64 = tx
         .query_row(
             "SELECT COALESCE(MAX(position), 0) FROM playlist_songs WHERE playlist_id = ?1",
             params![playlist_id],
@@ -282,13 +289,31 @@ pub async fn add_songs_to_playlist(
         )
         .unwrap_or(0);
 
-    for (i, song_id) in song_ids.iter().enumerate() {
-        conn.execute(
-            "INSERT OR IGNORE INTO playlist_songs (playlist_id, song_id, position) VALUES (?1, ?2, ?3)",
-            params![playlist_id, song_id, max_pos + i as i64 + 1],
-        ).map_err(|e| e.to_string())?;
+    {
+        let mut stmt = tx
+            .prepare("INSERT OR IGNORE INTO playlist_songs (playlist_id, song_id, position) VALUES (?1, ?2, ?3)")
+            .map_err(|e| e.to_string())?;
+
+        let mut current_pos = max_pos;
+        for song_id in song_ids {
+            current_pos += 1;
+            stmt.execute(params![playlist_id, song_id, current_pos])
+                .map_err(|e| e.to_string())?;
+        }
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn add_songs_to_playlist(
+    playlist_id: i64,
+    song_ids: Vec<i64>,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    let mut conn = state.0.lock().map_err(|e| e.to_string())?;
+    add_songs_to_playlist_internal(&mut conn, playlist_id, &song_ids)
 }
 
 #[tauri::command]
@@ -538,4 +563,50 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
+
+    #[test]
+    fn test_batch_add_songs_to_playlist() {
+        let temp_dir = std::env::temp_dir().join(format!("test_pl_batch_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+        initialize_db(&db_path).unwrap();
+        let mut conn = rusqlite::Connection::open(&db_path).unwrap();
+
+        // Create playlist
+        conn.execute("INSERT INTO playlists (name) VALUES (?1)", params!["Chill Beats"]).unwrap();
+        let playlist_id = conn.last_insert_rowid();
+
+        // Insert 5 test songs
+        let mut song_ids = Vec::new();
+        for i in 1..=5 {
+            conn.execute(
+                "INSERT INTO songs (path, title) VALUES (?1, ?2)",
+                params![format!("/music/test_{}.mp3", i), format!("Test Song {}", i)],
+            ).unwrap();
+            song_ids.push(conn.last_insert_rowid());
+        }
+
+        // Batch insert 3 songs
+        add_songs_to_playlist_internal(&mut conn, playlist_id, &song_ids[0..3]).unwrap();
+
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?1",
+            params![playlist_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(count, 3);
+
+        // Batch insert with duplicates (songs 2, 3, 4, 5) -> 2 and 3 should be ignored by UNIQUE
+        add_songs_to_playlist_internal(&mut conn, playlist_id, &song_ids[1..5]).unwrap();
+
+        let total_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?1",
+            params![playlist_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(total_count, 5);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }
+

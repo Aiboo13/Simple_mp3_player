@@ -112,6 +112,149 @@
   border-color: var(--clr-black);
 }
 
+.context-menu-multi-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Sub-Menu (PRD v1.6 Tambahkan ke Playlist...) ── */
+.context-submenu-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-menu-has-submenu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-menu-has-submenu.active {
+  background: var(--surface-panel);
+  border-color: var(--clr-black);
+  box-shadow: 2px 2px 0 var(--clr-black);
+}
+
+.context-menu-arrow {
+  font-size: 10px;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.context-submenu {
+  position: absolute;
+  top: -4px;
+  z-index: 10001;
+  width: 230px;
+  background: var(--surface-card);
+  border: var(--border-thick);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: context-menu-pop 0.12s cubic-bezier(0, 0, 0.2, 1);
+  user-select: none;
+}
+
+.context-submenu.open-right {
+  left: 100%;
+  margin-left: 4px;
+}
+
+.context-submenu.open-left {
+  right: 100%;
+  margin-right: 4px;
+}
+
+.context-submenu-header {
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #777;
+  font-weight: 700;
+  border-bottom: 2px solid var(--clr-black);
+  margin-bottom: 3px;
+}
+
+.context-submenu-divider {
+  height: 2px;
+  background: var(--clr-black);
+  margin: 3px 0;
+}
+
+.context-submenu-create-btn {
+  background: rgba(30, 100, 255, 0.08);
+  border-color: var(--clr-black);
+}
+.context-submenu-create-btn:hover {
+  background: var(--clr-blue);
+  color: var(--clr-white);
+  box-shadow: 2px 2px 0 var(--clr-black);
+}
+
+/* Inline New Playlist Box */
+.context-submenu-new-pl-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 5px;
+  background: var(--surface-panel);
+  border: 2px solid var(--clr-black);
+  margin: 2px 0;
+}
+
+.context-submenu-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border: 2px solid var(--clr-black);
+  background: var(--surface-bg);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.context-submenu-new-pl-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.context-submenu-new-pl-btns .btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 4px 6px;
+  font-weight: 700;
+}
+
+/* Playlists scrollable list */
+.context-submenu-playlists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.context-submenu-playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-submenu-empty {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 11px;
+  color: #888;
+}
+
 /* ── Theme 2: Black & White Theme Overrides ── */
 [data-theme="bw"] .context-menu {
   background: #c8c8c8 !important;
@@ -148,6 +291,47 @@
 }
 
 [data-theme="bw"] .context-menu-play-next:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="bw"] .context-submenu {
+  background: #c8c8c8 !important;
+  border-color: #000000 !important;
+  box-shadow: 6px 6px 0 #000000 !important;
+}
+
+[data-theme="bw"] .context-submenu-header {
+  border-bottom-color: #000000 !important;
+  color: #222222 !important;
+}
+
+[data-theme="bw"] .context-submenu-divider {
+  background: #000000 !important;
+}
+
+[data-theme="bw"] .context-submenu-new-pl-box {
+  background: #b0b0b0 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .context-submenu-input {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .context-submenu-create-btn {
+  background: #d8d8d8 !important;
+  border-color: #000000 !important;
+}
+
+[data-theme="bw"] .context-submenu-create-btn:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="bw"] .context-menu-has-submenu.active {
   background: #000000 !important;
   color: #ffffff !important;
 }
@@ -197,4 +381,51 @@
   background: #00ff66 !important;
   color: #030605 !important;
   border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu {
+  background: #070e0a !important;
+  border: 2px solid #00ff66 !important;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4) !important;
+}
+
+[data-theme="darkweb"] .context-submenu-header {
+  border-bottom: 2px solid #00ff66 !important;
+  color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-divider {
+  background: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-new-pl-box {
+  background: #0c1811 !important;
+  border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-input {
+  background: #030605 !important;
+  color: #00ff66 !important;
+  border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-create-btn {
+  background: #0c1811 !important;
+  border-color: #00ff66 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-create-btn:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+}
+
+[data-theme="darkweb"] .context-menu-has-submenu.active {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .context-submenu-empty {
+  color: #63a880 !important;
 }

@@ -27,13 +27,38 @@ export default function MainPanel() {
     currentTime, seekTo,
     isLyricsFullscreen, toggleLyricsFullscreen,
     openContextMenu,
+    selectedSongIds, setSelectedSongIds, toggleSelectSongId, clearSelectedSongs,
   } = usePlayerStore();
 
   const [displaySongs, setDisplaySongs] = useState([]);
   const [loadingArt, setLoadingArt] = useState(false);
-  const [selectedSongId, setSelectedSongId] = useState(null);
+  const lastClickedIndexRef = useRef(null);
+
+  const selectedSet = useMemo(() => new Set(selectedSongIds), [selectedSongIds]);
 
   const currentSong = queue[currentIndex] ?? null;
+
+  // Global keyboard shortcuts: Ctrl/Cmd+A to select all, Escape to clear selection
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        const target = e.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+          return;
+        }
+        e.preventDefault();
+        if (displaySongs.length > 0) {
+          setSelectedSongIds(displaySongs.map((s) => s.id));
+        }
+      } else if (e.key === 'Escape') {
+        if (selectedSongIds.length > 0) {
+          clearSelectedSongs();
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [displaySongs, selectedSongIds, clearSelectedSongs, setSelectedSongIds]);
 
   // Filter songs by search
   useEffect(() => {
@@ -207,8 +232,42 @@ export default function MainPanel() {
                   : 'Full Music'}
               </h1>
               <span className="badge mono">{displaySongs.length} tracks</span>
+              {selectedSongIds.length > 0 && (
+                <div className="song-selection-badge-wrap">
+                  <span className="badge badge-yellow mono">{selectedSongIds.length} selected</span>
+                  <button
+                    id="clear-selection-btn"
+                    className="btn btn-sm btn-clear-selection"
+                    onClick={clearSelectedSongs}
+                    title="Deselect all (Esc)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
             <div className="song-list-actions">
+              {selectedSongIds.length > 1 && (
+                <button
+                  id="batch-playlist-btn"
+                  className="btn btn-yellow btn-sm"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const firstSong = displaySongs.find((s) => selectedSongIds.includes(s.id)) || displaySongs[0];
+                    openContextMenu({
+                      x: rect.left,
+                      y: rect.bottom + 4,
+                      song: firstSong,
+                      source: 'main',
+                      index: 0,
+                      selectedSongIds,
+                    });
+                  }}
+                  title="Tambahkan lagu terpilih ke playlist"
+                >
+                  + Playlist ({selectedSongIds.length})
+                </button>
+              )}
               <button id="play-all-btn" className="btn btn-primary btn-sm" onClick={handlePlayAll} disabled={displaySongs.length === 0}>
                 ▶ Play All
               </button>
@@ -243,20 +302,40 @@ export default function MainPanel() {
                   song={song}
                   index={index}
                   isCurrent={isCurrentSong(song)}
-                  isSelected={selectedSongId === song.id}
+                  isSelected={selectedSet.has(song.id)}
                   isPlaying={isPlaying && isCurrentSong(song)}
-                  onSelect={() => setSelectedSongId(song.id)}
+                  onClick={(e) => {
+                    const isMulti = e.ctrlKey || e.metaKey;
+                    if (isMulti) {
+                      toggleSelectSongId(song.id);
+                      lastClickedIndexRef.current = index;
+                    } else if (e.shiftKey && lastClickedIndexRef.current !== null) {
+                      const start = Math.min(lastClickedIndexRef.current, index);
+                      const end = Math.max(lastClickedIndexRef.current, index);
+                      const rangeIds = displaySongs.slice(start, end + 1).map((s) => s.id);
+                      setSelectedSongIds(Array.from(new Set([...selectedSongIds, ...rangeIds])));
+                    } else {
+                      setSelectedSongIds([song.id]);
+                      lastClickedIndexRef.current = index;
+                    }
+                  }}
                   onPlay={() => handlePlaySong(song, index)}
                   onTogglePlay={() => handleTogglePlaySong(song, index)}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    setSelectedSongId(song.id);
+                    let currentSelection = selectedSongIds;
+                    if (!selectedSongIds.includes(song.id)) {
+                      currentSelection = [song.id];
+                      setSelectedSongIds(currentSelection);
+                      lastClickedIndexRef.current = index;
+                    }
                     openContextMenu({
                       x: e.clientX,
                       y: e.clientY,
                       song,
                       source: 'main',
                       index,
+                      selectedSongIds: currentSelection,
                     });
                   }}
                 />
@@ -269,7 +348,7 @@ export default function MainPanel() {
   );
 }
 
-function SongRow({ song, index, isCurrent, isSelected, isPlaying, onSelect, onPlay, onTogglePlay, onContextMenu }) {
+function SongRow({ song, index, isCurrent, isSelected, isPlaying, onClick, onPlay, onTogglePlay, onContextMenu }) {
   const { addToQueue, showToast } = usePlayerStore();
 
   function handleAddToQueue(e) {
@@ -287,7 +366,7 @@ function SongRow({ song, index, isCurrent, isSelected, isPlaying, onSelect, onPl
       id={`song-row-${song.id}`}
       className={`song-row ${isCurrent ? 'current' : ''} ${isSelected ? 'selected' : ''}`}
       role="listitem"
-      onClick={onSelect}
+      onClick={onClick}
       onDoubleClick={onPlay}
       onContextMenu={onContextMenu}
       tabIndex={0}

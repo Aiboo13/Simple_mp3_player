@@ -124,6 +124,11 @@ Aplikasi ini menggunakan pola arsitektur desktop modern:
   * Menampilkan daftar lagu yang sedang mengantre untuk diputar.
   * Mendukung pengaturan ulang urutan lagu menggunakan drag-and-drop (**@dnd-kit**), hapus per item, dan pembersihan antrean (*Clear Queue*).
 
+* **[`src/components/ContextMenu/ContextMenu.jsx`](src/components/ContextMenu/ContextMenu.jsx)**
+  * Context menu klik kanan bergaya *Neo-Brutalism* untuk interaksi lagu:
+    * Mendukung seleksi tunggal maupun multi-seleksi ganda (*multi-select* `Ctrl+Click` / `Cmd+Click` dan `Shift+Click`).
+    * Opsi: *Play Next*, *Play Now*, *Add to Queue*, dan **"Tambahkan ke Playlist..."** dengan *flyout sub-menu* menampilkan daftar playlist aktif serta opsi pembuatan instan **"+ Buat Playlist Baru"** secara *batch transaction* SQLite.
+
 ---
 
 ## 🛠️ Ringkasan Teknologi & Dependensi

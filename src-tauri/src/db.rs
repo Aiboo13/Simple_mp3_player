@@ -68,6 +68,8 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist);
         CREATE INDEX IF NOT EXISTS idx_songs_album ON songs(album);
         CREATE INDEX IF NOT EXISTS idx_songs_added_at ON songs(added_at);
+        CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist_id ON playlist_songs(playlist_id);
+        CREATE INDEX IF NOT EXISTS idx_playlist_songs_song_id ON playlist_songs(song_id);
     ")?;
 
     // Migration for existing databases that were created before has_metadata was added

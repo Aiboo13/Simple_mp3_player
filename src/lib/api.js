@@ -48,7 +48,12 @@ export async function deletePlaylist(id) {
  * Add songs to a playlist
  */
 export async function addSongsToPlaylist(playlistId, songIds) {
-  return invoke('add_songs_to_playlist', { playlistId, songIds });
+  return invoke('add_songs_to_playlist', {
+    playlistId,
+    songIds,
+    playlist_id: playlistId,
+    song_ids: songIds,
+  });
 }
 
 /**

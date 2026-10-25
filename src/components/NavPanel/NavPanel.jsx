@@ -61,6 +61,7 @@ export default function NavPanel() {
     showToast, replaceQueue,
     activePlaylistId,
     theme, setTheme, cycleTheme,
+    clearSelectedSongs,
   } = usePlayerStore();
 
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -92,6 +93,7 @@ export default function NavPanel() {
   async function handleSelectLibrary() {
     setActiveView('library');
     setActivePlaylistId(null);
+    clearSelectedSongs();
     try {
       const songs = await getAllSongs(sortBy, sortOrder);
       setSongs(songs);
@@ -103,6 +105,7 @@ export default function NavPanel() {
   async function handleSelectPlaylist(pl) {
     setActiveView('playlist');
     setActivePlaylistId(pl.id);
+    clearSelectedSongs();
     try {
       const songs = await getPlaylistSongs(pl.id);
       setSongs(songs);

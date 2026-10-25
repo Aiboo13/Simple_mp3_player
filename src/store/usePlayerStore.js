@@ -80,6 +80,28 @@ const usePlayerStore = create((set, get) => ({
   searchQuery: '',
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
+  // ── Selection State (PRD v1.6 Multi-Select) ───────────────
+  selectedSongIds: [],
+  setSelectedSongIds: (selectedSongIds) =>
+    set({
+      selectedSongIds: Array.isArray(selectedSongIds) ? selectedSongIds : [],
+    }),
+  toggleSelectSongId: (id) =>
+    set((state) => {
+      const exists = state.selectedSongIds.includes(id);
+      return {
+        selectedSongIds: exists
+          ? state.selectedSongIds.filter((item) => item !== id)
+          : [...state.selectedSongIds, id],
+      };
+    }),
+  clearSelectedSongs: () => set({ selectedSongIds: [] }),
+  selectAllSongs: (songsList) =>
+    set((state) => {
+      const list = songsList || state.songs;
+      return { selectedSongIds: list.map((s) => s.id) };
+    }),
+
   // ── Audio Sink & Element Reference (PRD v1.5 Strict Mute) ──
   audioElement: null,
   setAudioElement: (audioElement) => set({ audioElement }),
@@ -200,6 +222,41 @@ const usePlayerStore = create((set, get) => ({
     }
 
     get().showToast(`✓ Play next: ${song.title}`);
+  },
+
+  insertPlayNextBatch: (songsToInsert) => {
+    if (!Array.isArray(songsToInsert) || songsToInsert.length === 0) return;
+    if (songsToInsert.length === 1) {
+      get().insertPlayNext(songsToInsert[0]);
+      return;
+    }
+    const { queue, currentIndex, originalQueue } = get();
+    if (queue.length === 0 || currentIndex === -1) {
+      get().strictMuteSink();
+      set({
+        queue: [...songsToInsert],
+        currentIndex: 0,
+        isPlaying: true,
+        originalQueue: originalQueue.length > 0 ? [...songsToInsert] : [],
+      });
+      get().showToast(`✓ Playing ${songsToInsert.length} songs`);
+      return;
+    }
+
+    const currentSong = queue[currentIndex];
+    const insertIds = new Set(songsToInsert.map((s) => s.id));
+    const newQueue = queue.filter((s, idx) => idx === currentIndex || !insertIds.has(s.id));
+    const newCurrentIndex = newQueue.findIndex((s) => s.id === currentSong?.id);
+    const safeCurrentIndex = newCurrentIndex !== -1 ? newCurrentIndex : currentIndex;
+
+    const toInsert = songsToInsert.filter((s) => s.id !== currentSong?.id);
+    newQueue.splice(safeCurrentIndex + 1, 0, ...toInsert);
+
+    set({
+      queue: newQueue,
+      currentIndex: safeCurrentIndex,
+    });
+    get().showToast(`✓ Play next: ${toInsert.length} tracks`);
   },
 
   replaceQueue: (songs, startIndex = 0) => {
