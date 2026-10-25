@@ -352,7 +352,7 @@ pub async fn get_album_art(path: String) -> Result<Option<String>, String> {
 pub async fn read_audio_file(
     path: String,
     is_pure_audio: Option<bool>,
-) -> Result<Vec<u8>, String> {
+) -> Result<tauri::ipc::Response, String> {
     if path.is_empty() {
         return Err("Audio path is empty".into());
     }
@@ -392,7 +392,7 @@ pub async fn read_audio_file(
                 reader.read_to_end(&mut buffer)
                     .map_err(|e| format!("[PureAudio] Failed to read audio: {}", e))?;
                 // Genuine raw MPEG stream — no fMP4 check needed, safe to return directly
-                return Ok(buffer);
+                return Ok(tauri::ipc::Response::new(buffer));
             }
 
             // Standard path: read full file then run fMP4 detection + remux if needed
@@ -401,8 +401,10 @@ pub async fn read_audio_file(
                 .map_err(|e| format!("Failed to read audio: {}", e))?;
 
             // If the audio file is a fragmented DASH MP4, unfragment/remux it so GStreamer plays it smoothly
-            let final_buffer = scanner::get_or_remux_fragmented_mp4(&path_clone, buffer);
-            Ok(final_buffer)
+            let buffer = scanner::get_or_remux_fragmented_mp4(&path_clone, buffer);
+            // If the audio file is FLAC, remux into OGG container to avoid GStreamer push-mode assertion crashes
+            let final_buffer = scanner::get_or_remux_flac(&path_clone, buffer);
+            Ok(tauri::ipc::Response::new(final_buffer))
         })
         .await
         .map_err(|e| format!("Audio task execution error: {}", e))?

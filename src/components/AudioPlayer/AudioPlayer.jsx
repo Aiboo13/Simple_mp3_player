@@ -101,9 +101,9 @@ export default function AudioPlayer() {
         const blobUrl = await readAudioFile(path, isPureAudio);
         blobCacheRef.current.set(path, blobUrl);
 
-        // Keep cache bounded to max 6 tracks without ever evicting the active song or the song just loaded
+        // Keep cache bounded to max 3 tracks (current, next, prev) without ever evicting the active song or the song just loaded
         const activeSongPath = usePlayerStore.getState().queue[usePlayerStore.getState().currentIndex]?.path;
-        while (blobCacheRef.current.size > 6) {
+        while (blobCacheRef.current.size > 3) {
           let keyToEvict = null;
           for (const k of blobCacheRef.current.keys()) {
             if (k !== activeSongPath && k !== path) {

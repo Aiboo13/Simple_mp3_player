@@ -197,8 +197,12 @@ export function detectAudioMimeType(uint8Array, fallbackExt = '') {
  */
 export async function readAudioFile(path, isPureAudio = false) {
   // Tauri v2 requires snake_case keys — camelCase is NOT auto-converted unlike Tauri v1
-  const bytes = await invoke('read_audio_file', { path, is_pure_audio: isPureAudio });
-  const u8 = new Uint8Array(bytes);
+  const response = await invoke('read_audio_file', { path, is_pure_audio: isPureAudio });
+  const u8 = response instanceof Uint8Array
+    ? response
+    : response instanceof ArrayBuffer
+    ? new Uint8Array(response)
+    : new Uint8Array(response);
   const ext = (path.split('.').pop() || '').toLowerCase();
   const type = detectAudioMimeType(u8, ext);
   const blob = new Blob([u8], { type });
