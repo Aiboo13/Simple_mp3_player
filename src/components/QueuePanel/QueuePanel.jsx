@@ -189,35 +189,41 @@ export default function QueuePanel() {
     <aside className="queue-panel" aria-label="Play Queue">
       {/* ── Header ── */}
       <div className="section-header queue-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="queue-header-top">
+          <div className="queue-header-title">
             <h2>QUEUE</h2>
-            {isShuffled && <span className="badge badge-yellow mono" style={{ fontSize: '10px' }}>SHUFFLED</span>}
           </div>
+          <div className="queue-header-actions">
+            {queue.length > 1 && (
+              <button
+                id="queue-shuffle-btn"
+                className={`btn btn-sm queue-shuffle-btn ${isShuffled ? 'btn-yellow' : ''}`}
+                onClick={toggleShuffle}
+                title={isShuffled ? 'Restore original order' : 'Shuffle queue'}
+              >
+                ⇄ Shuffle
+              </button>
+            )}
+            {queue.length > 0 && (
+              <button
+                id="clear-queue-btn"
+                className="btn btn-sm queue-clear-btn"
+                onClick={() => { clearQueue(); showToast('Queue cleared'); }}
+                title="Clear queue"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="queue-header-bottom">
           <div className="queue-meta mono">
             {queue.length} tracks · {formatDuration(totalDuration)}
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          {queue.length > 1 && (
-            <button
-              id="queue-shuffle-btn"
-              className={`btn btn-sm ${isShuffled ? 'btn-yellow' : ''}`}
-              onClick={toggleShuffle}
-              title={isShuffled ? 'Restore original order' : 'Shuffle queue'}
-            >
-              ⇄ Shuffle
-            </button>
-          )}
-          {queue.length > 0 && (
-            <button
-              id="clear-queue-btn"
-              className="btn btn-sm queue-clear-btn"
-              onClick={() => { clearQueue(); showToast('Queue cleared'); }}
-              title="Clear queue"
-            >
-              Clear
-            </button>
+          {isShuffled && (
+            <span className="badge badge-yellow mono queue-shuffled-badge">
+              SHUFFLED
+            </span>
           )}
         </div>
       </div>

@@ -9,27 +9,89 @@
 
 /* ── Header ── */
 .queue-header {
-  justify-content: space-between;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
   background: var(--clr-blue);
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
-.queue-meta {
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  color: rgba(255,255,255,0.7);
-  margin-top: 2px;
+
+.queue-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
 }
+
+.queue-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.queue-header-title h2 {
+  font-size: 13px;
+  margin: 0;
+  letter-spacing: 0.08em;
+}
+
+.queue-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.queue-shuffle-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  line-height: 1.2;
+}
+
 .queue-clear-btn {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.3);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
   color: white;
   font-size: 11px;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+  padding: 3px 8px;
+  line-height: 1.2;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
 }
+
 .queue-clear-btn:hover {
-  background: rgba(255,255,255,0.25);
-  box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.3);
   transform: translate(-1px, -1px);
+}
+
+.queue-header-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.queue-meta {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0;
+}
+
+.queue-shuffled-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  line-height: 1.2;
+  flex-shrink: 0;
 }
 
 /* ── Empty State ── */
@@ -187,3 +249,55 @@
 .q-bars span:nth-child(1) { height: 6px; animation-delay: 0s; }
 .q-bars span:nth-child(2) { height: 12px; animation-delay: 0.2s; }
 .q-bars span:nth-child(3) { height: 5px; animation-delay: 0.4s; }
+
+/* ── Theme Overrides: Queue Header ── */
+[data-theme="bw"] .queue-header {
+  background: #b5b5b5 !important;
+  border-bottom: 3px solid #000000 !important;
+  color: #000000 !important;
+}
+
+[data-theme="bw"] .queue-meta {
+  color: #333333 !important;
+}
+
+[data-theme="bw"] .queue-clear-btn {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+[data-theme="bw"] .queue-clear-btn:hover {
+  background: #252525 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="darkweb"] .queue-header {
+  background: #070e0a !important;
+  border-bottom: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .queue-meta {
+  color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .queue-clear-btn {
+  background: #070e0a !important;
+  border: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+  box-shadow: 2px 2px 0 #00ff66 !important;
+}
+
+[data-theme="darkweb"] .queue-clear-btn:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+}
+
+[data-theme="darkweb"] .queue-shuffle-btn.btn-yellow {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 2px 2px 0 #00e5ff !important;
+}
