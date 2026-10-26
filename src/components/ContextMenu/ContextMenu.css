@@ -1,11 +1,11 @@
 /* ============================================================
-   CONTEXT MENU — NEO-BRUTALISM DESIGN
+   CONTEXT MENU & PLAYLIST MODAL — NEO-BRUTALISM DESIGN
    ============================================================ */
 
 .context-menu {
   position: fixed;
   z-index: 10000;
-  width: 210px;
+  width: 220px;
   background: var(--surface-card);
   border: var(--border-thick);
   box-shadow: var(--shadow-lg);
@@ -50,10 +50,6 @@
   letter-spacing: 0.04em;
 }
 
-.context-menu-divider {
-  display: none;
-}
-
 .context-menu-item {
   display: flex;
   align-items: center;
@@ -89,6 +85,12 @@
   flex: 1;
 }
 
+.context-menu-arrow {
+  font-size: 10px;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
 /* Featured: Play Next item */
 .context-menu-play-next {
   background: rgba(245, 200, 0, 0.15);
@@ -118,144 +120,301 @@
   gap: 6px;
 }
 
-/* ── Sub-Menu (PRD v1.6 Tambahkan ke Playlist...) ── */
-.context-submenu-wrapper {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
+/* ============================================================
+   CENTERED PLAYLIST MODAL — ALWAYS CENTERED ON SCREEN
+   ============================================================ */
 
-.context-menu-has-submenu {
+.playlist-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10005;
+  background: rgba(10, 10, 10, 0.75);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  padding: var(--sp-4);
+  animation: playlist-backdrop-fade 0.15s ease-out;
 }
 
-.context-menu-has-submenu.active {
-  background: var(--surface-panel);
-  border-color: var(--clr-black);
-  box-shadow: 2px 2px 0 var(--clr-black);
+@keyframes playlist-backdrop-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.context-menu-arrow {
-  font-size: 10px;
-  margin-left: auto;
-  opacity: 0.7;
-}
-
-.context-submenu {
-  position: absolute;
-  top: -4px;
-  z-index: 10001;
-  width: 230px;
+.playlist-modal-card {
+  width: 480px;
+  max-width: 94vw;
+  max-height: min(85vh, 620px);
   background: var(--surface-card);
   border: var(--border-thick);
-  box-shadow: var(--shadow-lg);
-  padding: var(--sp-2);
+  box-shadow: 10px 10px 0 var(--clr-black);
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  animation: context-menu-pop 0.12s cubic-bezier(0, 0, 0.2, 1);
+  animation: playlist-modal-pop 0.15s cubic-bezier(0, 0, 0.2, 1);
+  overflow: hidden;
   user-select: none;
 }
 
-.context-submenu.open-right {
-  left: 100%;
-  margin-left: 4px;
+@keyframes playlist-modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.context-submenu.open-left {
-  right: 100%;
-  margin-right: 4px;
+/* Modal Header */
+.playlist-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-panel);
+  border-bottom: 3px solid var(--clr-black);
 }
 
-.context-submenu-header {
-  padding: 4px 6px;
+.playlist-modal-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.playlist-modal-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.playlist-modal-title h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--clr-black);
+  letter-spacing: -0.01em;
+}
+
+.playlist-modal-icon {
+  font-size: 16px;
+}
+
+.playlist-modal-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #555;
+}
+
+.playlist-modal-song-info {
+  font-weight: 600;
+  color: var(--clr-black);
+}
+
+.playlist-modal-close-btn {
+  padding: 3px 8px;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  background: var(--surface-card);
+  border: 2px solid var(--clr-black);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--clr-black);
+  transition: all var(--transition-fast);
+}
+
+.playlist-modal-close-btn:hover {
+  background: var(--clr-red);
+  color: var(--clr-white);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--clr-black);
+}
+
+/* Create New Playlist Section */
+.playlist-modal-create-section {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.playlist-modal-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #666;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: #777;
+}
+
+.playlist-modal-create-form {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.playlist-modal-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 2px solid var(--clr-black);
+  background: var(--surface-card);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.1);
+  color: var(--clr-black);
+}
+
+.playlist-modal-create-btn {
+  font-size: 12px;
+  padding: 7px 14px;
   font-weight: 700;
-  border-bottom: 2px solid var(--clr-black);
-  margin-bottom: 3px;
+  white-space: nowrap;
 }
 
-.context-submenu-divider {
-  height: 2px;
+.playlist-modal-divider {
+  height: 3px;
   background: var(--clr-black);
-  margin: 3px 0;
+  flex-shrink: 0;
 }
 
-.context-submenu-create-btn {
-  background: rgba(30, 100, 255, 0.08);
-  border-color: var(--clr-black);
-}
-.context-submenu-create-btn:hover {
-  background: var(--clr-blue);
-  color: var(--clr-white);
-  box-shadow: 2px 2px 0 var(--clr-black);
+/* Available Playlists List Section */
+.playlist-modal-list-section {
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Inline New Playlist Box */
-.context-submenu-new-pl-box {
+.playlist-modal-list-header {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 5px;
-  background: var(--surface-panel);
-  border: 2px solid var(--clr-black);
-  margin: 2px 0;
 }
 
-.context-submenu-input {
-  width: 100%;
+.playlist-modal-search {
   padding: 5px 8px;
   font-size: 12px;
-  font-family: var(--font-sans);
-  font-weight: 600;
   border: 2px solid var(--clr-black);
-  background: var(--surface-bg);
-  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.1);
-  box-sizing: border-box;
+  background: var(--surface-card);
+  color: var(--clr-black);
 }
 
-.context-submenu-new-pl-btns {
-  display: flex;
-  gap: 4px;
-}
-
-.context-submenu-new-pl-btns .btn {
-  flex: 1;
-  font-size: 11px;
-  padding: 4px 6px;
-  font-weight: 700;
-}
-
-/* Playlists scrollable list */
-.context-submenu-playlists-list {
+.playlist-modal-items-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 220px;
+  gap: 6px;
   overflow-y: auto;
+  max-height: 250px;
+  padding-right: 4px;
 }
 
-.context-submenu-playlist-item {
+.playlist-modal-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 10px 12px;
+  background: var(--surface-card);
+  border: 2px solid var(--clr-black);
+  box-shadow: 3px 3px 0 var(--clr-black);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-align: left;
+  transition: all var(--transition-fast);
 }
 
-.context-submenu-empty {
-  padding: 10px 8px;
+.playlist-modal-item:hover {
+  background: var(--clr-yellow);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--clr-black);
+}
+
+.playlist-modal-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.playlist-modal-item-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.playlist-modal-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--clr-black);
+}
+
+.playlist-modal-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.playlist-modal-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #ffffff;
+}
+
+.playlist-modal-add-icon {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--clr-black);
+  opacity: 0.6;
+}
+
+.playlist-modal-item:hover .playlist-modal-add-icon {
+  opacity: 1;
+}
+
+.playlist-modal-empty {
+  padding: 24px 16px;
   text-align: center;
-  font-size: 11px;
-  color: #888;
+  font-size: 12px;
+  color: #777;
+  background: var(--surface-panel);
+  border: 2px dashed #999;
 }
 
-/* ── Theme 2: Black & White Theme Overrides ── */
+/* Modal Footer */
+.playlist-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-panel);
+  border-top: 2px solid var(--clr-black);
+  font-size: 11px;
+}
+
+.playlist-modal-hint {
+  font-size: 11px;
+  color: #666;
+}
+
+.playlist-modal-cancel-btn {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+}
+
+/* ============================================================
+   THEME 2: BLACK & WHITE OVERRIDES
+   ============================================================ */
 [data-theme="bw"] .context-menu {
   background: #c8c8c8 !important;
   border-color: #000000 !important;
@@ -295,48 +454,68 @@
   color: #ffffff !important;
 }
 
-[data-theme="bw"] .context-submenu {
+/* Modal B&W */
+[data-theme="bw"] .playlist-modal-backdrop {
+  background: rgba(0, 0, 0, 0.8) !important;
+}
+
+[data-theme="bw"] .playlist-modal-card {
   background: #c8c8c8 !important;
   border-color: #000000 !important;
-  box-shadow: 6px 6px 0 #000000 !important;
+  box-shadow: 10px 10px 0 #000000 !important;
 }
 
-[data-theme="bw"] .context-submenu-header {
-  border-bottom-color: #000000 !important;
-  color: #222222 !important;
-}
-
-[data-theme="bw"] .context-submenu-divider {
-  background: #000000 !important;
-}
-
-[data-theme="bw"] .context-submenu-new-pl-box {
-  background: #b0b0b0 !important;
+[data-theme="bw"] .playlist-modal-header,
+[data-theme="bw"] .playlist-modal-create-section,
+[data-theme="bw"] .playlist-modal-footer {
+  background: #b5b5b5 !important;
   border-color: #000000 !important;
+  color: #000000 !important;
 }
 
-[data-theme="bw"] .context-submenu-input {
+[data-theme="bw"] .playlist-modal-title h2,
+[data-theme="bw"] .playlist-modal-song-info,
+[data-theme="bw"] .playlist-modal-item-name {
+  color: #000000 !important;
+}
+
+[data-theme="bw"] .playlist-modal-input,
+[data-theme="bw"] .playlist-modal-search {
   background: #ffffff !important;
   color: #000000 !important;
   border-color: #000000 !important;
 }
 
-[data-theme="bw"] .context-submenu-create-btn {
+[data-theme="bw"] .playlist-modal-divider {
+  background: #000000 !important;
+}
+
+[data-theme="bw"] .playlist-modal-item {
   background: #d8d8d8 !important;
   border-color: #000000 !important;
+  box-shadow: 3px 3px 0 #000000 !important;
+  color: #000000 !important;
 }
 
-[data-theme="bw"] .context-submenu-create-btn:hover {
+[data-theme="bw"] .playlist-modal-item:hover {
+  background: #000000 !important;
+  color: #ffffff !important;
+  box-shadow: 5px 5px 0 #000000 !important;
+}
+
+[data-theme="bw"] .playlist-modal-item:hover .playlist-modal-item-name,
+[data-theme="bw"] .playlist-modal-item:hover .playlist-modal-add-icon {
+  color: #ffffff !important;
+}
+
+[data-theme="bw"] .playlist-modal-close-btn:hover {
   background: #000000 !important;
   color: #ffffff !important;
 }
 
-[data-theme="bw"] .context-menu-has-submenu.active {
-  background: #000000 !important;
-  color: #ffffff !important;
-}
-
-/* ── Theme 3: Dark Web Overrides ── */
+/* ============================================================
+   THEME 3: DARK WEB OVERRIDES
+   ============================================================ */
 [data-theme="darkweb"] .context-menu {
   background: #070e0a !important;
   border: 2px solid #00ff66 !important;
@@ -383,49 +562,103 @@
   border-color: #00ff66 !important;
 }
 
-[data-theme="darkweb"] .context-submenu {
-  background: #070e0a !important;
-  border: 2px solid #00ff66 !important;
-  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4) !important;
+/* Modal DarkWeb */
+[data-theme="darkweb"] .playlist-modal-backdrop {
+  background: rgba(2, 4, 3, 0.88) !important;
 }
 
-[data-theme="darkweb"] .context-submenu-header {
+[data-theme="darkweb"] .playlist-modal-card {
+  background: #070e0a !important;
+  border: 2px solid #00ff66 !important;
+  box-shadow: 0 0 26px rgba(0, 255, 102, 0.5) !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-header {
+  background: #050b07 !important;
   border-bottom: 2px solid #00ff66 !important;
+  color: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-title h2 {
+  color: #00ff66 !important;
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+}
+
+[data-theme="darkweb"] .playlist-modal-subtitle {
   color: #63a880 !important;
 }
 
-[data-theme="darkweb"] .context-submenu-divider {
-  background: #00ff66 !important;
+[data-theme="darkweb"] .playlist-modal-song-info {
+  color: #a4f7c7 !important;
 }
 
-[data-theme="darkweb"] .context-submenu-new-pl-box {
-  background: #0c1811 !important;
+[data-theme="darkweb"] .playlist-modal-create-section,
+[data-theme="darkweb"] .playlist-modal-footer {
+  background: #050b07 !important;
   border-color: #00ff66 !important;
 }
 
-[data-theme="darkweb"] .context-submenu-input {
+[data-theme="darkweb"] .playlist-modal-input,
+[data-theme="darkweb"] .playlist-modal-search {
+  background: #030605 !important;
+  color: #00ff66 !important;
+  border-color: #00ff66 !important;
+  box-shadow: inset 0 0 6px rgba(0, 255, 102, 0.2) !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-divider {
+  background: #00ff66 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-item {
+  background: #0c1811 !important;
+  border-color: #143b25 !important;
+  color: #a4f7c7 !important;
+  box-shadow: 2px 2px 0 #00ff66 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-item:hover {
+  background: #00ff66 !important;
+  color: #030605 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.8) !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-item:hover .playlist-modal-item-name,
+[data-theme="darkweb"] .playlist-modal-item:hover .playlist-modal-add-icon {
+  color: #030605 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-item-name {
+  color: #a4f7c7 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-badge {
   background: #030605 !important;
   color: #00ff66 !important;
   border-color: #00ff66 !important;
 }
 
-[data-theme="darkweb"] .context-submenu-create-btn {
-  background: #0c1811 !important;
-  border-color: #00ff66 !important;
+[data-theme="darkweb"] .playlist-modal-close-btn {
+  background: #070e0a !important;
   color: #00ff66 !important;
-}
-
-[data-theme="darkweb"] .context-submenu-create-btn:hover {
-  background: #00ff66 !important;
-  color: #030605 !important;
-}
-
-[data-theme="darkweb"] .context-menu-has-submenu.active {
-  background: #00ff66 !important;
-  color: #030605 !important;
   border-color: #00ff66 !important;
+  box-shadow: 2px 2px 0 #00ff66 !important;
 }
 
-[data-theme="darkweb"] .context-submenu-empty {
+[data-theme="darkweb"] .playlist-modal-close-btn:hover {
+  background: #ff0055 !important;
+  color: #ffffff !important;
+  border-color: #ff0055 !important;
+  box-shadow: 0 0 10px #ff0055 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-empty {
+  background: #0c1811 !important;
+  border-color: #143b25 !important;
   color: #63a880 !important;
+}
+
+[data-theme="darkweb"] .playlist-modal-hint {
+  color: #559972 !important;
 }
