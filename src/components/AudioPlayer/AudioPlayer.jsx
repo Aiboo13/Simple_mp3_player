@@ -71,7 +71,6 @@ export default function AudioPlayer() {
     isShuffled, toggleShuffle,
     repeatMode, cycleRepeat,
     showToast,
-    albumArtCache, setAlbumArt,
     seekRequest,
     playNextSong,
     playPrevSong,
@@ -189,10 +188,11 @@ export default function AudioPlayer() {
     const nextSong = getNextSong();
     const prevSong = getPrevSong();
 
-    // Pure audio pre-buffering: start quickly (400ms) since no metadata/album-art overhead exists
-    // Standard tracks: pre-buffer after 1500ms
+    // Give current song time to establish playback without competing I/O:
+    // Pure audio pre-buffering: 1200ms
+    // Standard tracks: 2500ms
     const isPureNext = nextSong && nextSong.has_metadata === false;
-    const preloadDelay = isPureNext ? 400 : 1500;
+    const preloadDelay = isPureNext ? 1200 : 2500;
 
     const timer = setTimeout(() => {
       const doPreload = () => {
@@ -204,16 +204,17 @@ export default function AudioPlayer() {
           });
 
           // PRD 4.C: Skip album art lookup if next track is pure audio or has no cover
-          if (nextSong.has_metadata !== false && nextSong.has_cover && !albumArtCache[nextSong.path]) {
+          const artCache = usePlayerStore.getState().albumArtCache;
+          if (nextSong.has_metadata !== false && nextSong.has_cover && !artCache[nextSong.path]) {
             getAlbumArt(nextSong.path)
               .then((art) => {
-                if (art) setAlbumArt(nextSong.path, art);
+                if (art) usePlayerStore.getState().setAlbumArt(nextSong.path, art);
               })
               .catch(() => {});
           }
         }
 
-        // Also pre-buffer prevSong so PgUp transitions are instantaneous cache hits
+        // Also pre-buffer prevSong after nextSong is processed so PgUp transitions are cached
         if (prevSong?.path && prevSong.path !== currentSong?.path && prevSong.path !== nextSong?.path) {
           const prevIsPure = prevSong.has_metadata === false;
           getOrLoadBlob(prevSong.path, prevIsPure).catch(() => {});
@@ -221,14 +222,14 @@ export default function AudioPlayer() {
       };
 
       if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        window.requestIdleCallback(doPreload, { timeout: 2500 });
+        window.requestIdleCallback(doPreload, { timeout: 3000 });
       } else {
         doPreload();
       }
     }, preloadDelay);
 
     return () => clearTimeout(timer);
-  }, [currentSong?.path, getNextSong, getPrevSong, getOrLoadBlob, albumArtCache, setAlbumArt]);
+  }, [currentSong?.path, getNextSong, getPrevSong, getOrLoadBlob]);
 
   // ── Strict Sequential State Machine for Audio Transitions (PRD v1.5 Req 4.A & 4.C) ──
   // Sequence: Pause/Stop (A) -> Flush Buffer -> Load File (B) -> Wait Buffer -> Play (B) -> Verify Decoder Stabilization -> Unmute

@@ -324,24 +324,49 @@ pub fn check_has_id3_or_mp4_header(path: &Path) -> bool {
     }
 }
 
-/// Check if a byte slice corresponds to a fragmented MP4 / DASH audio file (fMP4).
-/// Fragmented MP4 files contain 'ftyp' at offset 4 followed by 'dash', 'sidx', or 'moof' atoms.
-/// In WebKitGTK / GStreamer push mode (Blobs), 'sidx' segment boundaries cause premature EOS
-/// signals, causing discontinuous skips and jumps in audio while the playback clock continues.
-pub fn is_fragmented_mp4(data: &[u8]) -> bool {
+/// Check if a byte slice corresponds to a fragmented, non-faststart, or video-carrying MP4 / M4A audio file.
+/// In WebKitGTK / GStreamer push mode (Blobs):
+/// 1. 'sidx' / 'moof' / 'dash' segment boundaries cause premature EOS signals and skips.
+/// 2. If 'moov' is at the end of the file (after 'mdat'), GStreamer push mode must buffer the entire file
+///    before decoding, causing heavy initial lag ("ngeload banyak") and playback desync.
+/// 3. Embedded MJPEG video streams (attached pictures) can cork the audio sink, causing the timer to run with no sound.
+pub fn is_problematic_mp4(data: &[u8]) -> bool {
     if data.len() < 16 || &data[4..8] != b"ftyp" {
         return false;
     }
-    let inspect_len = data.len().min(4096);
+
+    // 1. Detect DASH / fragmented MP4 markers
+    let inspect_len = data.len().min(8192);
     let sample = &data[..inspect_len];
-    sample.windows(4).any(|w| w == b"dash" || w == b"sidx" || w == b"moof")
+    if sample.windows(4).any(|w| w == b"dash" || w == b"sidx" || w == b"moof") {
+        return true;
+    }
+
+    // 2. Detect non-faststart container (moov atom placed after mdat or at end of file)
+    let ftyp_size = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    if ftyp_size >= 8 && ftyp_size + 8 <= data.len() {
+        let next_box_type = &data[ftyp_size + 4..ftyp_size + 8];
+        // In a proper faststart streamable file, the box directly after ftyp must be 'moov'.
+        // If it is 'mdat', 'free', 'wide', etc., 'moov' is delayed and requires remuxing.
+        if next_box_type != b"moov" {
+            return true;
+        }
+    }
+
+    false
 }
 
-/// If the audio file is a fragmented MP4 / DASH container, remux it into a standard,
-/// unfragmented MP4 container (moov at start + contiguous mdat) using fast stream copy (`-c copy`).
-/// Results are cached in the temp directory so the remux operation (~80ms) occurs only once per track.
+/// Backward-compatible alias for fragmented MP4 check
+pub fn is_fragmented_mp4(data: &[u8]) -> bool {
+    is_problematic_mp4(data)
+}
+
+/// If the audio file is a problematic MP4 / M4A container (fragmented, delayed moov, or attached video track),
+/// remux it into a clean, unfragmented MP4 container (moov at start, -vn stripped, contiguous mdat)
+/// using fast stream copy (`-vn -c:a copy -movflags +faststart`).
+/// Results are cached in the temp directory so the remux operation (~30ms) occurs only once per track.
 pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> Vec<u8> {
-    if !is_fragmented_mp4(&original_bytes) {
+    if !is_problematic_mp4(&original_bytes) {
         return original_bytes;
     }
 
@@ -356,9 +381,9 @@ pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> V
 
     let cache_dir = std::env::temp_dir().join("mp3_player_lokal_cache");
     let _ = std::fs::create_dir_all(&cache_dir);
-    let cached_path = cache_dir.join(format!("{}_{:x}_unfrag.m4a", file_stem, path_hash));
+    let cached_path = cache_dir.join(format!("{}_{:x}_faststart.m4a", file_stem, path_hash));
 
-    // Fast-path: Return cached unfragmented file if already generated
+    // Fast-path: Return cached remuxed file if already generated
     if let Ok(meta) = cached_path.metadata() {
         if meta.len() > 0 {
             if let Ok(cached_bytes) = std::fs::read(&cached_path) {
@@ -369,8 +394,10 @@ pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> V
         }
     }
 
-    // Remux using ffmpeg stream copy: -c copy -movflags +faststart
-    // This removes sidx/moof fragment boundaries and creates a standard continuous container.
+    // Remux using ffmpeg stream copy: -vn -c:a copy -movflags +faststart
+    // 1. -vn removes any embedded video track / attached picture so WebKitGTK <audio> plays cleanly without corking
+    // 2. -c:a copy does bit-exact lossless stream copy of the audio (zero re-encoding, ~20ms)
+    // 3. -movflags +faststart places moov at the start of the container for instant buffering and seamless playback
     let remux_status = std::process::Command::new("ffmpeg")
         .args([
             "-y",
@@ -378,7 +405,8 @@ pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> V
             "error",
             "-i",
             path_str,
-            "-c",
+            "-vn",
+            "-c:a",
             "copy",
             "-movflags",
             "+faststart",
@@ -921,6 +949,18 @@ mod tests {
             assert!(!remuxed.is_empty());
             // Remuxed output must NO LONGER be fragmented
             assert!(!is_fragmented_mp4(&remuxed));
+        }
+
+        // Test non-faststart M4A file (Teenagers.m4a has moov at the end of the file)
+        let teenagers_path = "/home/sah/Music/Teenagers.m4a";
+        if std::path::Path::new(teenagers_path).is_file() {
+            let original = std::fs::read(teenagers_path).unwrap();
+            // Must detect that Teenagers.m4a requires remuxing (non-faststart / delayed moov)
+            assert!(is_problematic_mp4(&original));
+            let remuxed = get_or_remux_fragmented_mp4(teenagers_path, original.clone());
+            assert!(!remuxed.is_empty());
+            // Remuxed output has moov at start and no video stream, so it is no longer problematic!
+            assert!(!is_problematic_mp4(&remuxed));
         }
     }
 
