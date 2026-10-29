@@ -12,6 +12,8 @@ function shuffleArray(arr) {
 
 let lastSkipTimestamp = 0;
 const SKIP_THROTTLE_MS = 250;
+let lastPlayToggleTimestamp = 0;
+const PLAY_TOGGLE_THROTTLE_MS = 200;
 
 const usePlayerStore = create((set, get) => ({
   // ── Library ──────────────────────────────────────────────
@@ -325,6 +327,35 @@ const usePlayerStore = create((set, get) => ({
   // ── Player ────────────────────────────────────────────────
   isPlaying: false,
   setIsPlaying: (isPlaying) => set({ isPlaying }),
+  togglePlayPause: () => {
+    const now = Date.now();
+    if (now - lastPlayToggleTimestamp < PLAY_TOGGLE_THROTTLE_MS) {
+      return;
+    }
+    lastPlayToggleTimestamp = now;
+
+    const { isPlaying, queue, currentIndex, audioElement } = get();
+    if (queue.length === 0 || currentIndex < 0) return;
+
+    if (isPlaying) {
+      if (audioElement && !audioElement.paused) {
+        audioElement.pause();
+      }
+      set({ isPlaying: false });
+    } else {
+      set({ isPlaying: true });
+      if (audioElement && audioElement.paused && audioElement.src) {
+        const p = audioElement.play();
+        if (p !== undefined) {
+          p.catch((err) => {
+            if (err.name !== 'AbortError') {
+              console.warn('[PlayerStore] Play error:', err);
+            }
+          });
+        }
+      }
+    }
+  },
 
   currentTime: 0,
   setCurrentTime: (currentTime) => set({ currentTime }),

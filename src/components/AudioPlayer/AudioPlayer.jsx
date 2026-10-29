@@ -100,14 +100,17 @@ export default function AudioPlayer() {
         const blobUrl = await readAudioFile(path, isPureAudio);
         blobCacheRef.current.set(path, blobUrl);
 
-        // Keep cache bounded to max 3 tracks (current, next, prev) without ever evicting the active song or the song just loaded
+        // Keep cache bounded to max 8 tracks without evicting the active song or currently loaded song
         const activeSongPath = usePlayerStore.getState().queue[usePlayerStore.getState().currentIndex]?.path;
-        while (blobCacheRef.current.size > 3) {
+        while (blobCacheRef.current.size > 8) {
           let keyToEvict = null;
           for (const k of blobCacheRef.current.keys()) {
-            if (k !== activeSongPath && k !== path) {
-              keyToEvict = k;
-              break;
+            if (k !== activeSongPath && k !== path && k !== currentSong?.path) {
+              const url = blobCacheRef.current.get(k);
+              if (!audioRef.current || audioRef.current.src !== url) {
+                keyToEvict = k;
+                break;
+              }
             }
           }
           if (!keyToEvict) break;
@@ -152,8 +155,10 @@ export default function AudioPlayer() {
     if (currentSong?.path) queuePaths.add(currentSong.path);
     for (const [path, url] of blobCacheRef.current.entries()) {
       if (!queuePaths.has(path)) {
-        URL.revokeObjectURL(url);
-        blobCacheRef.current.delete(path);
+        if (!audioRef.current || audioRef.current.src !== url) {
+          URL.revokeObjectURL(url);
+          blobCacheRef.current.delete(path);
+        }
       }
     }
   }, [queue, currentSong?.path]);
@@ -183,27 +188,22 @@ export default function AudioPlayer() {
     return queue[prevIdx] ?? null;
   }, [queue, currentIndex, repeatMode]);
 
-  // ── Pre-buffering Pure Audio & Adjacent Tracks (PRD v1.5 Requirement 4.C) ──
+  // ── Pre-buffering Next Track (PRD v1.5 Requirement 4.C) ──
   useEffect(() => {
     const nextSong = getNextSong();
-    const prevSong = getPrevSong();
 
-    // Give current song time to establish playback without competing I/O:
-    // Pure audio pre-buffering: 1200ms
-    // Standard tracks: 2500ms
-    const isPureNext = nextSong && nextSong.has_metadata === false;
-    const preloadDelay = isPureNext ? 1200 : 2500;
+    // Give current song time to establish steady playback without competing I/O (4500ms)
+    const preloadDelay = 4500;
 
     const timer = setTimeout(() => {
       const doPreload = () => {
         if (nextSong?.path && nextSong.path !== currentSong?.path) {
-          // PRD §4.B §4.C: pass isPureAudio=true so pre-buffer also uses the fast-path
           const nextIsPure = nextSong.has_metadata === false;
           getOrLoadBlob(nextSong.path, nextIsPure).catch((err) => {
             console.warn('[AudioPlayer] Pre-buffering next track error:', err);
           });
 
-          // PRD 4.C: Skip album art lookup if next track is pure audio or has no cover
+          // Preload album art for next track if needed
           const artCache = usePlayerStore.getState().albumArtCache;
           if (nextSong.has_metadata !== false && nextSong.has_cover && !artCache[nextSong.path]) {
             getAlbumArt(nextSong.path)
@@ -212,12 +212,6 @@ export default function AudioPlayer() {
               })
               .catch(() => {});
           }
-        }
-
-        // Also pre-buffer prevSong after nextSong is processed so PgUp transitions are cached
-        if (prevSong?.path && prevSong.path !== currentSong?.path && prevSong.path !== nextSong?.path) {
-          const prevIsPure = prevSong.has_metadata === false;
-          getOrLoadBlob(prevSong.path, prevIsPure).catch(() => {});
         }
       };
 
@@ -229,43 +223,17 @@ export default function AudioPlayer() {
     }, preloadDelay);
 
     return () => clearTimeout(timer);
-  }, [currentSong?.path, getNextSong, getPrevSong, getOrLoadBlob]);
+  }, [currentSong?.path, getNextSong, getOrLoadBlob]);
 
   // ── Strict Sequential State Machine for Audio Transitions (PRD v1.5 Req 4.A & 4.C) ──
   // Sequence: Pause/Stop (A) -> Flush Buffer -> Load File (B) -> Wait Buffer -> Play (B) -> Verify Decoder Stabilization -> Unmute
   // Speaker is strictly muted during transition and remains muted until continuous rendering is verified.
   const transitionSeqRef = useRef(0);
   const isTransitioningRef = useRef(false);
-  const lastPlayToggleRef = useRef(0);
 
   const handleTogglePlay = useCallback(() => {
-    const now = Date.now();
-    if (now - lastPlayToggleRef.current < 150) return;
-    lastPlayToggleRef.current = now;
-
-    const audio = audioRef.current;
-    if (!currentSong) return;
-
-    if (isPlaying) {
-      if (audio && !audio.paused) {
-        audio.pause();
-      }
-      isTransitioningRef.current = false;
-      setIsPlaying(false);
-    } else {
-      setIsPlaying(true);
-      if (audio && audio.paused && audio.src) {
-        const p = audio.play();
-        if (p !== undefined) {
-          p.catch((err) => {
-            if (err.name !== 'AbortError') {
-              console.warn('[AudioPlayer] Play toggle error:', err);
-            }
-          });
-        }
-      }
-    }
-  }, [isPlaying, currentSong, setIsPlaying]);
+    usePlayerStore.getState().togglePlayPause();
+  }, []);
 
   // ── Audio source management ──────────────────────────────────
   useEffect(() => {
@@ -279,12 +247,16 @@ export default function AudioPlayer() {
       try {
         // ── Phase 1: Stop previous audio immediately (PRD v1.5 Req 4.A) ──
         // Ensure no audio from Lagu A bleeds into the transition.
-        // Pausing immediately silences the speaker safely without corrupting GStreamer's volume pipeline.
         if (!audio.paused) {
           audio.pause();
         }
 
-        // ── Phase 2: Reset playback position without tearing down WebKitGTK decoder ──
+        // ── Phase 2: Clean WebKitGTK / GStreamer Pipeline Teardown ──
+        // Tearing down the previous pipeline by clearing src and calling load() prevents
+        // decoder re-use bugs, caps renegotiation failures, and audio frame skipping across tracks.
+        audio.removeAttribute('src');
+        audio.load();
+
         audio.currentTime = 0;
         setCurrentTime(0);
         setDuration(0);
@@ -489,7 +461,7 @@ export default function AudioPlayer() {
   }
 
   function handlePause() {
-    if (!isTransitioningRef.current) {
+    if (!isTransitioningRef.current && !audioRef.current?.ended) {
       setIsPlaying(false);
     }
   }

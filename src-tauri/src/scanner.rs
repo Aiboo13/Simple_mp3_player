@@ -361,12 +361,28 @@ pub fn is_fragmented_mp4(data: &[u8]) -> bool {
     is_problematic_mp4(data)
 }
 
-/// If the audio file is a problematic MP4 / M4A container (fragmented, delayed moov, or attached video track),
+/// Check if an MP4 / M4A file should be remuxed into a clean faststart streamable container.
+/// On WebKitGTK / GStreamer:
+/// 1. Fragmented DASH MP4 files fail to play or skip prematurely.
+/// 2. Non-faststart containers (moov at end) cause huge buffer pauses.
+/// 3. Embedded video tracks / cover art (JPEG/PNG/MJPEG) cork the audio pipeline and cause audio frame skipping.
+/// 4. Non-standard atoms (such as 'free' inside 'meta' or proprietary dref boxes) crash avdec_aac with error code 4.
+pub fn should_remux_mp4(path_str: &str, data: &[u8]) -> bool {
+    let p = Path::new(path_str);
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let is_mp4 = ext == "m4a" || ext == "mp4" || (data.len() >= 8 && &data[4..8] == b"ftyp");
+    if !is_mp4 {
+        return false;
+    }
+    true
+}
+
+/// If the audio file is an MP4 / M4A container (fragmented, delayed moov, attached video track, or non-standard atoms),
 /// remux it into a clean, unfragmented MP4 container (moov at start, -vn stripped, contiguous mdat)
 /// using fast stream copy (`-vn -c:a copy -movflags +faststart`).
 /// Results are cached in the temp directory so the remux operation (~30ms) occurs only once per track.
 pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> Vec<u8> {
-    if !is_problematic_mp4(&original_bytes) {
+    if !should_remux_mp4(path_str, &original_bytes) {
         return original_bytes;
     }
 
@@ -379,9 +395,16 @@ pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> V
     std::hash::Hash::hash(&file_size, &mut hasher);
     let path_hash = std::hash::Hasher::finish(&hasher);
 
+    let safe_stem: String = file_stem
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .take(30)
+        .collect();
+    let safe_stem = if safe_stem.is_empty() { "track".to_string() } else { safe_stem };
+
     let cache_dir = std::env::temp_dir().join("mp3_player_lokal_cache");
     let _ = std::fs::create_dir_all(&cache_dir);
-    let cached_path = cache_dir.join(format!("{}_{:x}_faststart.m4a", file_stem, path_hash));
+    let cached_path = cache_dir.join(format!("{}_{:x}_faststart.m4a", safe_stem, path_hash));
 
     // Fast-path: Return cached remuxed file if already generated
     if let Ok(meta) = cached_path.metadata() {
@@ -425,6 +448,93 @@ pub fn get_or_remux_fragmented_mp4(path_str: &str, original_bytes: Vec<u8>) -> V
     }
 
     // Fallback: return original bytes if ffmpeg is unavailable or fails
+    original_bytes
+}
+
+/// Check if an MP3 file contains an attached picture / video stream (ID3 APIC frame),
+/// which can cork WebKitGTK's audio sink and cause stuttering / skipping.
+pub fn is_mp3_with_attached_pic(path_str: &str, data: &[u8]) -> bool {
+    let p = Path::new(path_str);
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    if ext != "mp3" && !data.starts_with(b"ID3") {
+        return false;
+    }
+    if !data.starts_with(b"ID3") || data.len() < 10 {
+        return false;
+    }
+    // Calculate ID3v2 header tag size (synchsafe integer in bytes 6..10)
+    let id3_size = ((data[6] as usize & 0x7F) << 21)
+        | ((data[7] as usize & 0x7F) << 14)
+        | ((data[8] as usize & 0x7F) << 7)
+        | (data[9] as usize & 0x7F);
+    let inspect_len = (10 + id3_size).min(data.len()).min(5 * 1024 * 1024);
+    let header_slice = &data[..inspect_len];
+    header_slice.windows(4).any(|w| w == b"APIC" || w == b"PIC ")
+}
+
+/// If an MP3 audio file contains an attached picture / video stream, strip it into a clean
+/// pure audio MP3 stream (`-vn -c:a copy`) so GStreamer never stalls on missing video sinks.
+pub fn get_or_remux_mp3(path_str: &str, original_bytes: Vec<u8>) -> Vec<u8> {
+    if !is_mp3_with_attached_pic(path_str, &original_bytes) {
+        return original_bytes;
+    }
+
+    let p = Path::new(path_str);
+    let file_stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("audio");
+    let file_size = p.metadata().map(|m| m.len()).unwrap_or(original_bytes.len() as u64);
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(&path_str, &mut hasher);
+    std::hash::Hash::hash(&file_size, &mut hasher);
+    let path_hash = std::hash::Hasher::finish(&hasher);
+
+    let safe_stem: String = file_stem
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .take(30)
+        .collect();
+    let safe_stem = if safe_stem.is_empty() { "track".to_string() } else { safe_stem };
+
+    let cache_dir = std::env::temp_dir().join("mp3_player_lokal_cache");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let cached_path = cache_dir.join(format!("{}_{:x}_clean.mp3", safe_stem, path_hash));
+
+    // Fast-path: Return cached remuxed file if already generated
+    if let Ok(meta) = cached_path.metadata() {
+        if meta.len() > 0 {
+            if let Ok(cached_bytes) = std::fs::read(&cached_path) {
+                if !cached_bytes.is_empty() {
+                    return cached_bytes;
+                }
+            }
+        }
+    }
+
+    // Remux using ffmpeg stream copy: -vn -c:a copy
+    let remux_status = std::process::Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-v",
+            "error",
+            "-i",
+            path_str,
+            "-vn",
+            "-c:a",
+            "copy",
+            cached_path.to_str().unwrap_or(""),
+        ])
+        .output();
+
+    if let Ok(output) = remux_status {
+        if output.status.success() {
+            if let Ok(remuxed_bytes) = std::fs::read(&cached_path) {
+                if !remuxed_bytes.is_empty() {
+                    return remuxed_bytes;
+                }
+            }
+        }
+    }
+
     original_bytes
 }
 
@@ -981,6 +1091,7 @@ mod tests {
         }
     }
 
+
     #[test]
     fn test_clean_missing_and_deleted_songs() {
         use crate::db::initialize_db;
@@ -1041,6 +1152,24 @@ mod tests {
         assert_eq!(remaining, vec!["Kept Song".to_string()]);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_mp3_attached_pic_remuxing() {
+        let raw_mp3 = vec![0xFF, 0xFB, 0x90, 0x64];
+        assert!(!is_mp3_with_attached_pic("track.mp3", &raw_mp3));
+
+        let res = get_or_remux_mp3("track.mp3", raw_mp3.clone());
+        assert_eq!(res, raw_mp3);
+
+        // Test with real user MP3 file with attached picture if present
+        let rex_path = "/home/sah/Music/Rex Orange County - AMAZING.mp3";
+        if std::path::Path::new(rex_path).is_file() {
+            let original = std::fs::read(rex_path).unwrap();
+            assert!(is_mp3_with_attached_pic(rex_path, &original));
+            let remuxed = get_or_remux_mp3(rex_path, original.clone());
+            assert!(!remuxed.is_empty());
+        }
     }
 }
 

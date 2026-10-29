@@ -61,7 +61,7 @@ function SortableSongItem({ song, index, isCurrent, isPlaying }) {
   function handleTogglePlay(e) {
     e.stopPropagation();
     if (isCurrent) {
-      setIsPlaying(!isPlaying);
+      usePlayerStore.getState().togglePlayPause();
     } else {
       setCurrentIndex(index);
       setIsPlaying(true);

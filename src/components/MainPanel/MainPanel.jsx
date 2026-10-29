@@ -131,7 +131,7 @@ export default function MainPanel() {
 
   function handleTogglePlaySong(song, index) {
     if (isCurrentSong(song)) {
-      setIsPlaying(!isPlaying);
+      usePlayerStore.getState().togglePlayPause();
     } else {
       replaceQueue(displaySongs, index);
       setIsPlaying(true);
@@ -373,9 +373,6 @@ function SongRow({ song, index, isCurrent, isSelected, isPlaying, onClick, onPla
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           onPlay();
-        } else if (e.key === ' ') {
-          e.preventDefault();
-          onTogglePlay();
         }
       }}
       aria-label={`${song.title} by ${song.artist || 'Unknown'}`}

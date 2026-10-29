@@ -465,8 +465,10 @@ pub async fn read_audio_file(
             reader.read_to_end(&mut buffer)
                 .map_err(|e| (false, format!("Failed to read audio: {}", e)))?;
 
-            // If the audio file is a fragmented DASH MP4, unfragment/remux it so GStreamer plays it smoothly
+            // If the audio file is an MP4/M4A container, clean/remux it so GStreamer plays it smoothly
             let buffer = scanner::get_or_remux_fragmented_mp4(&path_clone, buffer);
+            // If the audio file is an MP3 with an attached picture/video stream, strip it so GStreamer never corks
+            let buffer = scanner::get_or_remux_mp3(&path_clone, buffer);
             // If the audio file is FLAC, remux into OGG container to avoid GStreamer push-mode assertion crashes
             let final_buffer = scanner::get_or_remux_flac(&path_clone, buffer);
             Ok(tauri::ipc::Response::new(final_buffer))

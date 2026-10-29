@@ -76,22 +76,14 @@ export default function App() {
 
       // 5. Space -> Toggle Play/Pause
       if (e.code === 'Space' || e.key === ' ') {
+        if (e.repeat) {
+          e.preventDefault();
+          return;
+        }
         const tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
         if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
           e.preventDefault();
-          const state = usePlayerStore.getState();
-          const audio = state.audioElement;
-          if (state.queue.length > 0 && state.currentIndex >= 0) {
-            if (state.isPlaying) {
-              if (audio && !audio.paused) audio.pause();
-              state.setIsPlaying(false);
-            } else {
-              state.setIsPlaying(true);
-              if (audio && audio.paused && audio.src) {
-                audio.play().catch(() => {});
-              }
-            }
-          }
+          usePlayerStore.getState().togglePlayPause();
           return;
         }
       }

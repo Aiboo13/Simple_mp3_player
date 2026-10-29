@@ -97,16 +97,29 @@ pub fn initialize_db(db_path: &PathBuf) -> Result<()> {
         [],
     );
 
-    // Retroactively update legacy pure audio .mp3 tracks to has_metadata = 0
-    let _ = conn.execute(
-        "UPDATE songs SET has_metadata = 0 
-         WHERE path LIKE '%.mp3'
-           AND (artist IS NULL OR trim(artist) = '' OR lower(trim(artist)) = 'unknown') 
-           AND (album IS NULL OR trim(album) = '' OR lower(trim(album)) = 'unknown') 
-           AND has_cover = 0 
-           AND has_lyrics = 0",
-        [],
-    );
+    // Restore has_metadata = 1 for any song that genuinely contains an ID3 or MP4 container header.
+    // Previously, an overly broad query set has_metadata = 0 for all .mp3 files with empty artist/album,
+    // which incorrectly classified valid tagged files (like YouTube downloads or single-tag files) as raw audio.
+    if let Ok(mut stmt) = conn.prepare("SELECT id, path FROM songs WHERE has_metadata = 0") {
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        });
+        if let Ok(songs_to_check) = rows {
+            let mut ids_to_restore = Vec::new();
+            for item in songs_to_check.flatten() {
+                let p = std::path::Path::new(&item.1);
+                if crate::scanner::check_has_id3_or_mp4_header(p) {
+                    ids_to_restore.push(item.0);
+                }
+            }
+            for id in ids_to_restore {
+                let _ = conn.execute(
+                    "UPDATE songs SET has_metadata = 1 WHERE id = ?1",
+                    rusqlite::params![id],
+                );
+            }
+        }
+    }
 
     Ok(())
 }
