@@ -38,6 +38,13 @@ export async function createPlaylist(name) {
 }
 
 /**
+ * Rename an existing playlist
+ */
+export async function renamePlaylist(id, name) {
+  return invoke('rename_playlist', { id, name });
+}
+
+/**
  * Delete a playlist
  */
 export async function deletePlaylist(id) {
@@ -57,10 +64,27 @@ export async function addSongsToPlaylist(playlistId, songIds) {
 }
 
 /**
- * Remove a song from a playlist
+ * Remove a single song from a playlist (only deletes from playlist, keeps in library)
  */
 export async function removeSongFromPlaylist(playlistId, songId) {
-  return invoke('remove_song_from_playlist', { playlistId, songId });
+  return invoke('remove_song_from_playlist', {
+    playlistId,
+    songId,
+    playlist_id: playlistId,
+    song_id: songId,
+  });
+}
+
+/**
+ * Remove multiple songs from a playlist (only deletes from playlist, keeps in library)
+ */
+export async function removeSongsFromPlaylist(playlistId, songIds) {
+  return invoke('remove_songs_from_playlist', {
+    playlistId,
+    songIds,
+    playlist_id: playlistId,
+    song_ids: songIds,
+  });
 }
 
 /**

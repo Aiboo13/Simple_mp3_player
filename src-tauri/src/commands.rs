@@ -271,6 +271,32 @@ pub async fn delete_playlist(id: i64, state: State<'_, DbState>) -> Result<(), S
     Ok(())
 }
 
+#[tauri::command]
+pub async fn rename_playlist(
+    id: i64,
+    name: String,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Playlist name cannot be empty".into());
+    }
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE playlists SET name = ?1 WHERE id = ?2",
+        params![trimmed, id],
+    )
+    .map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("UNIQUE") {
+            "Playlist name already exists".into()
+        } else {
+            err_str
+        }
+    })?;
+    Ok(())
+}
+
 pub fn add_songs_to_playlist_internal(
     conn: &mut rusqlite::Connection,
     playlist_id: i64,
@@ -327,6 +353,30 @@ pub async fn remove_song_from_playlist(
         "DELETE FROM playlist_songs WHERE playlist_id = ?1 AND song_id = ?2",
         params![playlist_id, song_id],
     ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_songs_from_playlist(
+    playlist_id: i64,
+    song_ids: Vec<i64>,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    if song_ids.is_empty() {
+        return Ok(());
+    }
+    let mut conn = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    {
+        let mut stmt = tx
+            .prepare("DELETE FROM playlist_songs WHERE playlist_id = ?1 AND song_id = ?2")
+            .map_err(|e| e.to_string())?;
+        for id in &song_ids {
+            stmt.execute(params![playlist_id, id])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -607,6 +657,68 @@ mod tests {
             |r| r.get(0),
         ).unwrap();
         assert_eq!(total_count, 5);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_playlist_crud_and_delete_only_from_playlist() {
+        let temp_dir = std::env::temp_dir().join(format!("test_pl_crud_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+        initialize_db(&db_path).unwrap();
+        let mut conn = rusqlite::Connection::open(&db_path).unwrap();
+
+        // 1. Create Playlist
+        conn.execute("INSERT INTO playlists (name) VALUES (?1)", params!["Rock Classics"]).unwrap();
+        let pl_id = conn.last_insert_rowid();
+
+        // 2. Add songs to songs table and playlist
+        conn.execute("INSERT INTO songs (path, title) VALUES (?1, ?2)", params!["/music/song1.mp3", "Rock 1"]).unwrap();
+        let s1 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO songs (path, title) VALUES (?1, ?2)", params!["/music/song2.mp3", "Rock 2"]).unwrap();
+        let s2 = conn.last_insert_rowid();
+
+        add_songs_to_playlist_internal(&mut conn, pl_id, &[s1, s2]).unwrap();
+
+        // Check count in playlist
+        let pl_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?1",
+            params![pl_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(pl_count, 2);
+
+        // 3. Rename playlist
+        conn.execute("UPDATE playlists SET name = ?1 WHERE id = ?2", params!["Hard Rock", pl_id]).unwrap();
+        let new_name: String = conn.query_row(
+            "SELECT name FROM playlists WHERE id = ?1",
+            params![pl_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(new_name, "Hard Rock");
+
+        // 4. Remove song s1 ONLY from playlist
+        conn.execute(
+            "DELETE FROM playlist_songs WHERE playlist_id = ?1 AND song_id = ?2",
+            params![pl_id, s1],
+        ).unwrap();
+
+        // Check playlist now has 1 song
+        let pl_count_after: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = ?1",
+            params![pl_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(pl_count_after, 1);
+
+        // CRUCIAL: Song s1 MUST still exist in the songs table (only deleted from playlist!)
+        let song_exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM songs WHERE id = ?1",
+            params![s1],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(song_exists, 1, "Song must still exist in library after removal from playlist");
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

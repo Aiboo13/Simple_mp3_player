@@ -4,6 +4,7 @@ import {
   getPlaylists,
   createPlaylist,
   addSongsToPlaylist,
+  removeSongsFromPlaylist,
   getPlaylistSongs,
 } from '../../lib/api';
 import './ContextMenu.css';
@@ -27,21 +28,26 @@ export default function ContextMenu() {
     activeView,
     activePlaylistId,
     showToast,
+    clearSelectedSongs,
   } = usePlayerStore();
 
   const menuRef = useRef(null);
   const modalCardRef = useRef(null);
   const newPlInputRef = useRef(null);
+  const openedAtRef = useRef(0);
 
   const [isSelectingPlaylist, setIsSelectingPlaylist] = useState(false);
   const [newPlName, setNewPlName] = useState('');
   const [playlistSearch, setPlaylistSearch] = useState('');
 
-  // Reset local state whenever contextMenu opens/changes
+  // Reset local state and record open timestamp whenever contextMenu opens/changes
   useEffect(() => {
     setIsSelectingPlaylist(false);
     setNewPlName('');
     setPlaylistSearch('');
+    if (contextMenu) {
+      openedAtRef.current = Date.now();
+    }
   }, [contextMenu]);
 
   // Focus new playlist input when playlist modal opens
@@ -54,9 +60,12 @@ export default function ContextMenu() {
   }, [isSelectingPlaylist]);
 
   // Close context menu on outside click or scroll (unless selecting playlist)
+  // Grace period prevents auto-closing from touchpad micro-scrolls or trailing pointerdown events
   useEffect(() => {
     function handlePointerDown(e) {
       if (isSelectingPlaylist) return; // Handled by modal backdrop
+      // Prevent premature closing from the opening right-click gesture / touch
+      if (Date.now() - openedAtRef.current < 200) return;
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         closeContextMenu();
       }
@@ -64,6 +73,8 @@ export default function ContextMenu() {
 
     function handleScroll() {
       if (isSelectingPlaylist) return; // Don't close modal on playlist list scroll
+      // Ignore inertial scroll or micro-scroll right when menu opened
+      if (Date.now() - openedAtRef.current < 250) return;
       closeContextMenu();
     }
 
@@ -197,6 +208,34 @@ export default function ContextMenu() {
     }
   }
 
+  async function handleRemoveFromPlaylist(e) {
+    e.stopPropagation();
+    if (!activePlaylistId) {
+      closeContextMenu();
+      return;
+    }
+    try {
+      const idsToRemove = targetSongIds;
+      await removeSongsFromPlaylist(activePlaylistId, idsToRemove);
+
+      // Refresh current playlist songs view
+      const updatedSongs = await getPlaylistSongs(activePlaylistId);
+      setSongs(updatedSongs);
+
+      // Refresh playlists list in sidebar to reflect updated song count
+      const updatedPlaylists = await getPlaylists();
+      setPlaylists(updatedPlaylists);
+
+      clearSelectedSongs();
+      showToast(`✓ Dihapus dari playlist (${idsToRemove.length} lagu)`);
+    } catch (err) {
+      console.error('[ContextMenu] handleRemoveFromPlaylist error:', err);
+      showToast(`Gagal menghapus dari playlist: ${err}`, 'error');
+    } finally {
+      closeContextMenu();
+    }
+  }
+
   async function handleAddToExistingPlaylist(pl) {
     try {
       await addSongsToPlaylist(pl.id, targetSongIds);
@@ -266,6 +305,8 @@ export default function ContextMenu() {
           ref={modalCardRef}
           className="playlist-modal-card"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="playlist-modal-header">
@@ -419,6 +460,8 @@ export default function ContextMenu() {
       role="menu"
       aria-label="Song Context Menu"
       onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
       <div className="context-menu-header">
@@ -506,6 +549,23 @@ export default function ContextMenu() {
         >
           <span className="context-menu-icon">✕</span>
           <span className="context-menu-label">Remove from Queue</span>
+        </button>
+      )}
+
+      {activeView === 'playlist' && activePlaylistId && (
+        <button
+          id="context-menu-remove-playlist"
+          className="context-menu-item context-menu-item-danger"
+          onClick={handleRemoveFromPlaylist}
+          role="menuitem"
+          title="Hapus dari playlist ini (hanya hapus dari playlist)"
+        >
+          <span className="context-menu-icon">✕</span>
+          <span className="context-menu-label">
+            {isMulti
+              ? `Hapus dari Playlist (${targetSongIds.length})`
+              : 'Hapus dari Playlist'}
+          </span>
         </button>
       )}
     </div>

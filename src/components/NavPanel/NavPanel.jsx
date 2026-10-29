@@ -6,6 +6,7 @@ import {
   getAllSongs,
   getPlaylists,
   createPlaylist,
+  renamePlaylist,
   deletePlaylist,
   getPlaylistSongs,
 } from '../../lib/api';
@@ -30,6 +31,17 @@ const ICON_PLUS = (
 const ICON_FOLDER = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+  </svg>
+);
+const ICON_EDIT = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+const ICON_CHECK = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
+    <polyline points="20 6 9 17 4 12"/>
   </svg>
 );
 const ICON_TRASH = (
@@ -66,6 +78,8 @@ export default function NavPanel() {
 
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [showNewPlaylist, setShowNewPlaylist] = useState(false);
+  const [editingPlaylistId, setEditingPlaylistId] = useState(null);
+  const [editingName, setEditingName] = useState('');
 
   // ── Handlers ──────────────────────────────────────────────
   async function handleScanDirectory() {
@@ -125,6 +139,29 @@ export default function NavPanel() {
       showToast(`Created: ${newPlaylistName.trim()}`);
     } catch (err) {
       showToast(`Error: ${err}`, 'error');
+    }
+  }
+
+  function handleStartRename(e, pl) {
+    e.stopPropagation();
+    setEditingPlaylistId(pl.id);
+    setEditingName(pl.name);
+  }
+
+  async function handleSaveRename(id) {
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      showToast('Nama playlist tidak boleh kosong', 'error');
+      return;
+    }
+    try {
+      await renamePlaylist(id, trimmed);
+      const pl = await getPlaylists();
+      setPlaylists(pl);
+      setEditingPlaylistId(null);
+      showToast(`✓ Playlist diubah: "${trimmed}"`);
+    } catch (err) {
+      showToast(`Gagal mengubah nama: ${err}`, 'error');
     }
   }
 
@@ -284,25 +321,77 @@ export default function NavPanel() {
           {playlists.length === 0 ? (
             <p className="nav-empty-hint mono">No playlists yet</p>
           ) : (
-            playlists.map((pl) => (
-              <button
-                key={pl.id}
-                id={`playlist-${pl.id}`}
-                className={`nav-item nav-playlist-item ${activePlaylistId === pl.id ? 'active' : ''}`}
-                onClick={() => handleSelectPlaylist(pl)}
-              >
-                {NAV_ICON_LIST}
-                <span className="text-truncate">{pl.name}</span>
-                <span className="nav-item-badge badge mono">{pl.song_count}</span>
-                <button
-                  className="nav-playlist-del"
-                  onClick={(e) => handleDeletePlaylist(e, pl.id)}
-                  aria-label={`Delete ${pl.name}`}
+            playlists.map((pl) =>
+              editingPlaylistId === pl.id ? (
+                <div
+                  key={pl.id}
+                  className="nav-playlist-edit-wrap"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  {ICON_TRASH}
-                </button>
-              </button>
-            ))
+                  <input
+                    type="text"
+                    className="input nav-playlist-edit-input"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveRename(pl.id);
+                      if (e.key === 'Escape') setEditingPlaylistId(null);
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    className="btn btn-sm btn-primary nav-playlist-edit-btn"
+                    onClick={() => handleSaveRename(pl.id)}
+                    title="Simpan nama"
+                    aria-label="Simpan nama playlist"
+                  >
+                    {ICON_CHECK}
+                  </button>
+                  <button
+                    className="btn btn-sm nav-playlist-edit-btn"
+                    onClick={() => setEditingPlaylistId(null)}
+                    title="Batal"
+                    aria-label="Batal ubah nama"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={pl.id}
+                  id={`playlist-${pl.id}`}
+                  className={`nav-item nav-playlist-item ${activePlaylistId === pl.id ? 'active' : ''}`}
+                  onClick={() => handleSelectPlaylist(pl)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSelectPlaylist(pl);
+                  }}
+                >
+                  {NAV_ICON_LIST}
+                  <span className="text-truncate">{pl.name}</span>
+                  <span className="nav-item-badge badge mono">{pl.song_count}</span>
+                  <div className="nav-playlist-item-actions">
+                    <button
+                      className="nav-playlist-edit"
+                      onClick={(e) => handleStartRename(e, pl)}
+                      aria-label={`Rename ${pl.name}`}
+                      title="Ubah nama playlist"
+                    >
+                      {ICON_EDIT}
+                    </button>
+                    <button
+                      className="nav-playlist-del"
+                      onClick={(e) => handleDeletePlaylist(e, pl.id)}
+                      aria-label={`Delete ${pl.name}`}
+                      title="Hapus playlist"
+                    >
+                      {ICON_TRASH}
+                    </button>
+                  </div>
+                </div>
+              )
+            )
           )}
         </div>
       </div>

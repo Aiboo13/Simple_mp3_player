@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import usePlayerStore from '../../store/usePlayerStore';
-import { searchSongs, getAlbumArt, getLyrics, formatDuration } from '../../lib/api';
+import {
+  searchSongs,
+  getAlbumArt,
+  getLyrics,
+  formatDuration,
+  renamePlaylist,
+  deletePlaylist,
+  removeSongFromPlaylist,
+  removeSongsFromPlaylist,
+  getPlaylistSongs,
+  getPlaylists,
+  getAllSongs,
+} from '../../lib/api';
 import { getActiveLyricIndex } from '../../lib/lrc';
 import './MainPanel.css';
 
@@ -23,7 +35,10 @@ export default function MainPanel() {
     lyricsContent, setLyricsContent, parsedLyrics,
     currentAlbumArt, setCurrentAlbumArt,
     albumArtCache, setAlbumArt, showToast, setCurrentIndex,
-    activeView, activePlaylistId,
+    activeView, setActiveView,
+    activePlaylistId, setActivePlaylistId,
+    playlists, setPlaylists, setSongs,
+    sortBy, sortOrder,
     currentTime, seekTo,
     isLyricsFullscreen, toggleLyricsFullscreen,
     openContextMenu,
@@ -32,9 +47,15 @@ export default function MainPanel() {
 
   const [displaySongs, setDisplaySongs] = useState([]);
   const [loadingArt, setLoadingArt] = useState(false);
+  const [isEditingPlaylistTitle, setIsEditingPlaylistTitle] = useState(false);
+  const [playlistTitleInput, setPlaylistTitleInput] = useState('');
   const lastClickedIndexRef = useRef(null);
 
   const selectedSet = useMemo(() => new Set(selectedSongIds), [selectedSongIds]);
+  const currentPlaylist = useMemo(
+    () => playlists.find((p) => p.id === activePlaylistId) || null,
+    [playlists, activePlaylistId]
+  );
 
   const currentSong = queue[currentIndex] ?? null;
 
@@ -155,6 +176,77 @@ export default function MainPanel() {
     return currentSong?.id === song.id;
   }
 
+  async function handleSavePlaylistTitle() {
+    if (!activePlaylistId) return;
+    const trimmed = playlistTitleInput.trim();
+    if (!trimmed) {
+      showToast('Nama playlist tidak boleh kosong', 'error');
+      return;
+    }
+    try {
+      await renamePlaylist(activePlaylistId, trimmed);
+      const pl = await getPlaylists();
+      setPlaylists(pl);
+      setIsEditingPlaylistTitle(false);
+      showToast(`✓ Playlist diubah: "${trimmed}"`);
+    } catch (err) {
+      console.error(err);
+      showToast(`Gagal mengubah nama: ${err}`, 'error');
+    }
+  }
+
+  async function handleDeleteCurrentPlaylist() {
+    if (!activePlaylistId) return;
+    try {
+      await deletePlaylist(activePlaylistId);
+      const pl = await getPlaylists();
+      setPlaylists(pl);
+      setActiveView('library');
+      setActivePlaylistId(null);
+      const allSongs = await getAllSongs(sortBy, sortOrder);
+      setSongs(allSongs);
+      showToast('Playlist deleted');
+    } catch (err) {
+      console.error(err);
+      showToast(`Gagal menghapus playlist: ${err}`, 'error');
+    }
+  }
+
+  async function handleBatchRemoveFromPlaylist() {
+    if (!activePlaylistId || selectedSongIds.length === 0) return;
+    try {
+      const count = selectedSongIds.length;
+      await removeSongsFromPlaylist(activePlaylistId, selectedSongIds);
+      const updated = await getPlaylistSongs(activePlaylistId);
+      setSongs(updated);
+      const pl = await getPlaylists();
+      setPlaylists(pl);
+      clearSelectedSongs();
+      showToast(`✓ Dihapus dari playlist (${count} lagu)`);
+    } catch (err) {
+      console.error(err);
+      showToast(`Gagal menghapus dari playlist: ${err}`, 'error');
+    }
+  }
+
+  async function handleRemoveSongFromPlaylist(song) {
+    if (!activePlaylistId) return;
+    try {
+      await removeSongFromPlaylist(activePlaylistId, song.id);
+      const updated = await getPlaylistSongs(activePlaylistId);
+      setSongs(updated);
+      const pl = await getPlaylists();
+      setPlaylists(pl);
+      if (selectedSongIds.includes(song.id)) {
+        setSelectedSongIds(selectedSongIds.filter((id) => id !== song.id));
+      }
+      showToast(`✓ Dihapus dari playlist: ${song.title}`);
+    } catch (err) {
+      console.error(err);
+      showToast(`Gagal menghapus dari playlist: ${err}`, 'error');
+    }
+  }
+
   return (
     <main className={`main-panel ${isLyricsFullscreen ? 'lyrics-fullscreen' : ''}`} role="main">
       {/* ── Side-by-Side Now Playing Area ── */}
@@ -224,13 +316,70 @@ export default function MainPanel() {
         <div className="song-list-section">
           <div className="song-list-header">
             <div className="song-list-title">
-              <h1>
-                {searchQuery
-                  ? `Search: "${searchQuery}"`
-                  : activeView === 'playlist'
-                  ? 'Playlist'
-                  : 'Full Music'}
-              </h1>
+              {isEditingPlaylistTitle && activeView === 'playlist' ? (
+                <div className="playlist-title-edit-wrap">
+                  <input
+                    type="text"
+                    className="input playlist-title-input"
+                    value={playlistTitleInput}
+                    onChange={(e) => setPlaylistTitleInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSavePlaylistTitle();
+                      if (e.key === 'Escape') setIsEditingPlaylistTitle(false);
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={handleSavePlaylistTitle}
+                    title="Simpan nama"
+                    aria-label="Simpan nama playlist"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setIsEditingPlaylistTitle(false)}
+                    title="Batal"
+                    aria-label="Batal ubah nama"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h1>
+                    {searchQuery
+                      ? `Search: "${searchQuery}"`
+                      : activeView === 'playlist'
+                      ? (currentPlaylist?.name || 'Playlist')
+                      : 'Full Music'}
+                  </h1>
+                  {activeView === 'playlist' && activePlaylistId && !searchQuery && (
+                    <div className="playlist-header-btns">
+                      <button
+                        className="btn btn-sm btn-icon playlist-header-btn"
+                        onClick={() => {
+                          setIsEditingPlaylistTitle(true);
+                          setPlaylistTitleInput(currentPlaylist?.name || '');
+                        }}
+                        title="Ubah nama playlist"
+                        aria-label="Ubah nama playlist"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="btn btn-sm btn-icon playlist-header-btn playlist-header-del"
+                        onClick={handleDeleteCurrentPlaylist}
+                        title="Hapus playlist"
+                        aria-label="Hapus playlist"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
               <span className="badge mono">{displaySongs.length} tracks</span>
               {selectedSongIds.length > 0 && (
                 <div className="song-selection-badge-wrap">
@@ -247,6 +396,16 @@ export default function MainPanel() {
               )}
             </div>
             <div className="song-list-actions">
+              {activeView === 'playlist' && activePlaylistId && selectedSongIds.length > 0 && (
+                <button
+                  id="batch-remove-pl-btn"
+                  className="btn btn-danger btn-sm"
+                  onClick={handleBatchRemoveFromPlaylist}
+                  title="Hapus lagu terpilih HANYA dari playlist ini (tetap ada di library)"
+                >
+                  ✕ Hapus ({selectedSongIds.length}) dari Playlist
+                </button>
+              )}
               {selectedSongIds.length > 1 && (
                 <button
                   id="batch-playlist-btn"
@@ -304,6 +463,8 @@ export default function MainPanel() {
                   isCurrent={isCurrentSong(song)}
                   isSelected={selectedSet.has(song.id)}
                   isPlaying={isPlaying && isCurrentSong(song)}
+                  isInPlaylist={activeView === 'playlist' && Boolean(activePlaylistId)}
+                  onRemoveFromPlaylist={() => handleRemoveSongFromPlaylist(song)}
                   onClick={(e) => {
                     const isMulti = e.ctrlKey || e.metaKey;
                     if (isMulti) {
@@ -348,7 +509,19 @@ export default function MainPanel() {
   );
 }
 
-function SongRow({ song, index, isCurrent, isSelected, isPlaying, onClick, onPlay, onTogglePlay, onContextMenu }) {
+function SongRow({
+  song,
+  index,
+  isCurrent,
+  isSelected,
+  isPlaying,
+  isInPlaylist,
+  onRemoveFromPlaylist,
+  onClick,
+  onPlay,
+  onTogglePlay,
+  onContextMenu,
+}) {
   const { addToQueue, showToast } = usePlayerStore();
 
   function handleAddToQueue(e) {
@@ -397,6 +570,20 @@ function SongRow({ song, index, isCurrent, isSelected, isPlaying, onClick, onPla
       <div className="song-row-album text-truncate">{song.album || '—'}</div>
       <div className="song-row-dur mono">{formatDuration(song.duration_secs)}</div>
       <div className="song-row-actions">
+        {isInPlaylist && (
+          <button
+            id={`remove-pl-btn-${song.id}`}
+            className="btn btn-icon btn-sm song-remove-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveFromPlaylist();
+            }}
+            aria-label={`Hapus ${song.title} dari playlist`}
+            title="Hapus dari playlist (hanya hapus dari playlist)"
+          >
+            ✕
+          </button>
+        )}
         <button
           id={`queue-btn-${song.id}`}
           className="btn btn-icon btn-sm song-queue-btn"

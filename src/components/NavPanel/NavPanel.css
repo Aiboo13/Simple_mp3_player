@@ -249,25 +249,69 @@
 }
 .nav-playlist-item {
   position: relative;
-  padding-right: 28px;
+  padding-right: 56px;
+  cursor: pointer;
 }
-.nav-playlist-del {
+.nav-playlist-item-actions {
   position: absolute;
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.nav-playlist-item:hover .nav-playlist-item-actions,
+.nav-playlist-item:focus-within .nav-playlist-item-actions {
+  opacity: 1;
+}
+.nav-playlist-edit,
+.nav-playlist-del {
   background: none;
   border: none;
-  color: #555;
+  color: #777;
   cursor: pointer;
   padding: 3px;
   display: flex;
   align-items: center;
-  opacity: 0;
-  transition: opacity var(--transition-fast), color var(--transition-fast);
+  justify-content: center;
+  transition: color var(--transition-fast);
 }
-.nav-playlist-item:hover .nav-playlist-del { opacity: 1; }
-.nav-playlist-del:hover { color: var(--clr-red); }
+.nav-playlist-edit:hover {
+  color: var(--clr-yellow);
+}
+.nav-playlist-del:hover {
+  color: var(--clr-red);
+}
+
+.nav-playlist-edit-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--surface-dark-2);
+  border: 1px solid var(--clr-yellow);
+}
+.nav-playlist-edit-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 3px 6px;
+  height: 26px;
+  background: var(--surface-dark-3);
+  color: #fff;
+  border: 1px solid #555;
+}
+.nav-playlist-edit-btn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .nav-empty-hint {
   font-size: 11px;
